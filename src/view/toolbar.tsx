@@ -8,9 +8,9 @@ import { cn } from '@/lib/utils.ts'
  * ## Sized to the PANE and never to the viewport
  *
  * Every width decision here is a `@container` query — `@[22rem]:` and friends —
- * because this page is drawn inside somebody else's pane and the viewport is
+ * because this page is drawn inside somebody else's container and the viewport is
  * the host's window, which says nothing about how wide this column is. A
- * `md:` breakpoint here would put a three-across toolbar in a 220px pane
+ * `md:` breakpoint here would put a three-across toolbar in a 220px container
  * whenever the reader's monitor was large, which is the failure the container
  * queries exist to make impossible. The container is declared on the wrapper in
  * `app.tsx`.

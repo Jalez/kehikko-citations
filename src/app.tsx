@@ -54,7 +54,7 @@ export function App() {
    *
    * Without this the page writes its own defaults back to the host on the first
    * render — before the greeting has arrived with what was saved — and a
-   * setting is lost every single time the pane loads. `kept` being `undefined`
+   * setting is lost every single time the container loads. `kept` being `undefined`
    * rather than `null` is what makes the distinction possible; see `Roadmap`.
    */
   const [restored, setRestored] = useState(false)
@@ -136,9 +136,9 @@ export function App() {
      * `@container` here and container queries everywhere below.
      *
      * This element is the container every `@[…]` in the toolbar measures
-     * against, and it is the pane rather than the window. A viewport breakpoint
+     * against, and it is the container rather than the window. A viewport breakpoint
      * would decide this column's layout from the size of the host's browser
-     * window, which says nothing at all about how wide this pane is.
+     * window, which says nothing at all about how wide this container is.
      */
     <div className="@container flex h-full min-w-0 flex-col bg-background text-foreground">
       <Head sight={sight} documents={documents} showing={showing} onPick={setPicked} epics={epics} />

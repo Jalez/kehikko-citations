@@ -38,7 +38,7 @@ export const VERSION = '1.0.0'
  *   carries refs and no kinds — which works precisely because every module that
  *   reads it agrees what a ref is. `graesser2004autotutor` is not a ref. It is
  *   a key in one author's `.bib` file, meaningful inside one document and
- *   meaningless three panes over, and putting it in the selection would hand
+ *   meaningless three containers over, and putting it in the selection would hand
  *   every module on the canvas a string it will try to look up in a tracker and
  *   fail to find. The failure is not an error anybody sees: it is References
  *   showing nothing, Journeys highlighting nothing, and a reader concluding the
@@ -47,7 +47,7 @@ export const VERSION = '1.0.0'
  *   The essay's own words for this are "context is the host's own knowledge or
  *   it is a rumour with a protocol's name on it". A citation key travelling as
  *   a ref is that rumour. So selection here is LOCAL: picking a row expands it
- *   in place, and nothing leaves this pane.
+ *   in place, and nothing leaves this container.
  *
  *   The day the protocol grows a way to say what kind of thing a selection
  *   holds — or the day a `citation:` prefix means something to a second module

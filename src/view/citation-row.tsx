@@ -10,8 +10,8 @@ import { cn } from '@/lib/utils.ts'
  *
  * shadcn's `Badge` carries `whitespace-nowrap` in its base class. A sibling
  * module in this workspace put a four-hundred-character string in one and gave
- * the pane a twelve-hundred-pixel min-content floor under a two-hundred-and-
- * twenty-pixel pane: the whole list scrolled sideways and nothing on screen
+ * the container a twelve-hundred-pixel min-content floor under a two-hundred-and-
+ * twenty-pixel container: the whole list scrolled sideways and nothing on screen
  * looked wrong. A paper title is exactly that kind of string — the corpus this
  * was written against has titles over a hundred and forty characters — and so
  * is a venue, and so is an author list with nine names in it.
@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils.ts'
  *
  * ## Why the whole row is a button and the selection stays here
  *
- * Pressing a row expands it in place and nothing leaves this pane. The
+ * Pressing a row expands it in place and nothing leaves this container. The
  * manifest's essay says why at length: the protocol's `selection` carries refs
  * with no kinds, every module that reads it agrees what a ref is, and a
  * citation key is not one. Putting `graesser2004autotutor` into the canvas

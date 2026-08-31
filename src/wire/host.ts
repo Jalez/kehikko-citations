@@ -145,7 +145,7 @@ export interface Host {
  * effect, and effects run strictly after the frame's `load` event — which is
  * exactly when the host greets. Listening on the window here meant the greeting
  * had already come and gone, every time: the page rendered perfectly and the
- * pane beside it reported a module that would not speak. See the essay in
+ * container beside it reported a module that would not speak. See the essay in
  * `mailbox.ts`.
  *
  * The source stays injectable, because everything this function decides is

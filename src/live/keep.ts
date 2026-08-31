@@ -14,7 +14,7 @@ import { EVERYTHING, type Sifting, type Standing } from './sift.ts'
  * so does have an origin of its own — but the argument is not about what this
  * module could get away with. A setting kept in browser storage is kept
  * per-browser, per-profile, and is invisible to the host that is showing this
- * pane; `state.set` is the protocol's answer and is the one that keeps working
+ * container; `state.set` is the protocol's answer and is the one that keeps working
  * whatever the framing turns out to be.
  *
  * The host keeps one string for one module and hands the same string back in
