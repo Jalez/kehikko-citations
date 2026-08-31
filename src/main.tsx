@@ -1,6 +1,24 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
+/**
+ * Imported for its side effect, and it belongs in the ENTRY rather than beside
+ * the `connect` call.
+ *
+ * The client installs the one `message` listener at module scope, so it is
+ * listening as part of this bundle being evaluated — before React has rendered
+ * anything, let alone run an effect. The host greets on the frame's `load`
+ * event and effects run strictly after that, so a listener installed in
+ * `useEffect` is installed after the greeting has already been posted and
+ * thrown away. The essay is in the client's `mailbox.ts`; the only symptom is a
+ * host reporting a module that will not speak.
+ *
+ * Here, from the entry, because a module scope that only a lazily-loaded chunk
+ * imports is a module scope that has not run yet — the same bug wearing a
+ * bundler's clothes.
+ */
+import 'roadmap-module-protocol/client'
+
 import { App } from './app.tsx'
 import './index.css'
 

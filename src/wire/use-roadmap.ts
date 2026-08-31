@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { ModuleContext } from 'roadmap-module-protocol'
+import { connect, type Connection } from 'roadmap-module-protocol/client'
 
 import { ID } from '../../manifest.ts'
-import { connect, type Host } from './host.ts'
 
 /**
  * The host, as three pieces of React state and one function.
@@ -20,14 +20,30 @@ import { connect, type Host } from './host.ts'
  * be. A page built the other way round, waiting for a host before it could show
  * anything, would be a page nobody could debug from a terminal.
  *
+ * ## The wire underneath, which is no longer written here
+ *
+ * `wire/host.ts` and `wire/mailbox.ts` — 408 lines, near-identical to the copy
+ * in ten sibling modules — are one import of `roadmap-module-protocol/client`
+ * now. Nothing this page says on the wire changed: it answers `ready` to every
+ * greeting, refuses a `goto` at once with the client's own default sentence
+ * because this page passes no `onGoto`, and the backstop is still half a
+ * second, which is the client's default and was already this module's number.
+ *
+ * This hook survives on top of the core client rather than being replaced by
+ * `…/client/react`, and the reason is `kept` below: the generic hook starts its
+ * `state` at `null`, and this page has to tell "no greeting yet" from "greeted
+ * and keeping nothing", because only one of those means it may write its
+ * defaults over somebody's saved filter.
+ *
  * ## Nothing is sent before a greeting
  *
  * The host greets on every frame load and a module that announced itself first
- * would be shouting at a window that may not be a host at all. `connect`
- * listens on the `mailbox` rather than on `window` for a reason worth knowing:
- * effects run strictly after the frame's `load` event, which is exactly when
- * the host greets, so a listener installed here would miss it every time. The
- * essay is in `mailbox.ts`.
+ * would be shouting at a window that may not be a host at all. The client
+ * listens on its own `mailbox` rather than on `window` for a reason worth
+ * knowing: effects run strictly after the frame's `load` event, which is exactly
+ * when the host greets, so a listener installed here would miss it every time.
+ * The essay is in the client's `mailbox.ts`, and it is why `main.tsx` imports
+ * the client from the ENTRY rather than leaving it to this file.
  */
 export interface Roadmap {
   /** The epic the canvas is on, or null when nothing has said. */
@@ -56,7 +72,7 @@ export interface Roadmap {
 }
 
 export function useRoadmap(): Roadmap {
-  const host = useRef<Host | null>(null)
+  const host = useRef<Connection | null>(null)
   const [epic, setEpic] = useState<string | null>(null)
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
   const [kept, setKept] = useState<string | null | undefined>(undefined)
@@ -68,7 +84,7 @@ export function useRoadmap(): Roadmap {
       setEpic(context.epic)
       setTheme(context.theme)
     }
-    const bridge = connect(ID, {
+    const live = connect(ID, {
       onHello: (context, state) => {
         setFramed(true)
         take(context)
@@ -85,7 +101,7 @@ export function useRoadmap(): Roadmap {
          * on this and nothing is blank until it arrives — which is the whole
          * test of whether a capability was declared honestly.
          */
-        void bridge
+        void live
           .request('epics.list')
           .then((answer) => {
             const list = (answer as { epics?: { slug?: unknown }[] } | null)?.epics
@@ -98,10 +114,25 @@ export function useRoadmap(): Roadmap {
       },
       onContext: take,
     })
-    host.current = bridge
+    /*
+     * Stored BEFORE it is told to listen, and the order is the whole of a bug.
+     *
+     * The mailbox replays what arrived before anybody subscribed, and it replays
+     * SYNCHRONOUSLY inside `listen`. The greeting almost always arrived before
+     * React mounted — that is the entire reason the mailbox exists — so `onHello`
+     * fires on that line, and everything it reads has to be assigned already.
+     * The one-step `connect` this file used to call fired `onHello` DURING its
+     * own call, which left the `epics.list` above reaching for a `const` still
+     * in its own temporal dead zone. See `listen` in the client.
+     */
+    host.current = live
+    live.listen()
     return () => {
-      host.current = null
-      bridge.stop()
+      live.stop()
+      /* Cleared only if it is still ours. Under StrictMode the second mount has
+         already assigned its own connection by the time some cleanups run, and
+         a blind `null` here would leave the surviving mount holding nothing. */
+      if (host.current === live) host.current = null
     }
   }, [])
 
