@@ -4,9 +4,11 @@ import { resolve } from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { WELL_KNOWN } from 'roadmap-module-protocol'
+import { serves } from 'roadmap-module-protocol/serve'
 import { defineConfig, type Plugin } from 'vite'
 
 import { MANIFEST, answer, type Reply } from './doors.ts'
+import { ID, PREFERRED_PORT } from './manifest.ts'
 import { page } from './page/document.ts'
 import { list, papersDir, thesisRoot } from './store.ts'
 
@@ -209,6 +211,23 @@ async function body(request: IncomingMessage): Promise<Record<string, unknown> |
  * workspace carry a `"build": "vite build"` that cannot succeed. `build.outDir`
  * stays configured because it costs nothing and describes where a build WOULD
  * go if this ever grew one honestly.
+ *
+ * ## There is no `server.port` either, because `serves()` decides it
+ *
+ * 7930 was written on the `bunx vite` line in `run.sh` and again in
+ * `register.ts`, and true in neither the moment something else held the port:
+ * `--strictPort` meant this app printed `Error: Port 7930 is already in use` and
+ * exited 1, so a program with no interest in bibliographies could stop the
+ * bibliography from opening. It is `PREFERRED_PORT` in `manifest.ts` now, said
+ * once beside the id and read from there by this file and `register.ts` both.
+ *
+ * `serves()` is FIRST in the plugin list because it has to claim a port before
+ * anything else in this config asks for one. A free 7930 is taken in silence, so
+ * somebody who types the address they remember still gets their module; this
+ * module already answering there ends the start cleanly rather than making a
+ * second copy; anything else is a loud move to the next free port with the
+ * registration rewritten to the port the server ACTUALLY bound, read off
+ * `httpServer.address()` after `listening` rather than off what was asked for.
  */
 export default defineConfig({
   /**
@@ -219,7 +238,7 @@ export default defineConfig({
    * just fetched.
    */
   base: './',
-  plugins: [doors(), react(), tailwindcss()],
+  plugins: [serves({ id: ID, prefer: PREFERRED_PORT }), doors(), react(), tailwindcss()],
   resolve: { alias: { '@': resolve(import.meta.dirname, 'src') } },
   build: { outDir: 'dist', emptyOutDir: true },
 })
