@@ -33,22 +33,26 @@ broken citations.
 
 ## Where it reads from
 
-The **same environment variables the paper module reads**, deliberately:
+**The open project, exactly where the paper module reads papers:**
+`<project>/.kehikot/paper/<epic>/main.tex`, with the `.bib` the document names
+beside it. The project is the one the host says is open
+(`roadmap.context.projectPath`); the page sends it with every read, and both MCP
+tools take it as a required `project` argument (an absolute path). The folder is
+found with the protocol's `moduleDir(project, 'roadmap.paper')`, so this app and
+the paper module cannot disagree about where a paper is.
 
-| variable | what it names |
-| --- | --- |
-| `KEHIKKO_PAPERS_DIR` | a directory holding one folder per epic, each with a `main.tex` |
-| `KEHIKKO_ROADMAP_DIR` | a roadmap checkout; `data/papers` is appended |
-| `KEHIKKO_THESIS_DIR` | ONE document: a `main.tex` at the top of its own repository |
-| `KEHIKKO_THESIS_EPIC` | the slug that document answers to. Default `thesis` |
+With no project there is nowhere to look, and the page and the tools say so in
+those words rather than showing an empty list. There is no fallback directory.
 
-Reading the same variables is not depending on that module. Nothing here calls
+`KEHIKKO_PAPERS_DIR`, `KEHIKKO_ROADMAP_DIR`, `KEHIKKO_THESIS_DIR` and
+`KEHIKKO_THESIS_EPIC` are no longer read. The paper module dropped them first —
+they were one restart from gone, per-machine where the fact is per-project, and
+let a container show another project's material — and this app follows it, so a
+thesis now lives at `<project>/.kehikot/paper/thesis/` like any other paper.
+
+Reading the same folder is not depending on that module. Nothing here calls
 it, imports from it, or needs it running; the two are independent programs
-pointed at the same directory the way two editors open the same file. Asking the
-paper module over HTTP would make this page blank whenever its port was down,
-for data sitting on the same disk this process can already read — and a third
-set of variables would mean the same directory configured twice, which is the
-kind of thing that gets one of the two wrong and stays wrong for months.
+looking in the same directory the way two editors open the same file.
 
 There is no default and no cache. The `.bib` is being edited while this runs;
 the whole value of the page is that a reload shows the entry the author just
@@ -62,9 +66,8 @@ security-critical path; a copied one is a fence each module owns and tests, and
 changing one means changing the other deliberately.
 
 1. **The shape check.** An epic slug is `^[a-z0-9][a-z0-9-]{0,79}$`, applied
-   before any filesystem call, and applied to the slug from `KEHIKKO_THESIS_EPIC`
-   as well — a variable is set by somebody standing closer, not by somebody more
-   trustworthy.
+   before any filesystem call — and to every folder name under
+   `.kehikot/paper/`, since each becomes a slug on the wire.
 2. **`realpath` confinement, per root.** `\addbibresource{../../etc/passwd}` and
    `\include{../secret}` are strings an author can write; a symlink inside the
    tree pointing out of it resolves after a plain `resolve()` has already
@@ -125,7 +128,7 @@ Two tools, both read-only.
 
     bib/parse.ts     the BibTeX reader — pure, brace-aware, no dependencies
     bib/cite.ts      the \cite scanner and the cross-reference — pure
-    store.ts         the two roots, the two fences, and reading one document
+    store.ts         the project's papers folder, the two fences, and reading one document
     doors.ts         /api, /mcp, /healthz — one function, no socket
     manifest.ts      what a host reads, and the essay on the selection refusal
     src/live/        the filter, the order, and what survives a reload

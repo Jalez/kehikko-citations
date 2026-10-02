@@ -14,11 +14,11 @@ import { cn } from '@/lib/utils.ts'
  *
  * ## Every state is a sentence, and there are six of them
  *
- * `waiting`, `unconfigured`, `no such document`, `no bibliography`, `empty
+ * `waiting`, `nowhere`, `no such document`, `no bibliography`, `empty
  * bibliography`, and the list. They are enumerated rather than folded into "the
  * list is empty", because the folded version is the failure this workspace has
  * spent the most time on: an app that says "no entries" and quietly means "I
- * was not configured" has told somebody the opposite of the truth.
+ * had no project to look in" has told somebody the opposite of the truth.
  *
  * In particular `no bibliography` and `empty bibliography` stay apart. The
  * first is a document with no `\addbibresource` and no `\bibliography` — every
@@ -27,7 +27,10 @@ import { cn } from '@/lib/utils.ts'
  *
  * ## What is fetched, and when
  *
- * `/api/documents` once, and `/api/citations` whenever the epic changes. No
+ * `/api/documents` whenever the project changes, and `/api/citations` whenever
+ * the epic or the project changes. Both name the project the host said is open
+ * (`roadmap.context.projectPath`): documents are read from
+ * `<project>/.kehikot/paper/`, exactly where the paper module reads them. No
  * polling and no cache: the `.bib` is being edited while this is running, and
  * the whole value of the page is that a reload shows the entry the author just
  * added. A cache here would show the bibliography from before lunch with every
@@ -36,13 +39,13 @@ import { cn } from '@/lib/utils.ts'
 
 type Sight =
   | { at: 'waiting' }
-  | { at: 'unconfigured'; why: string }
+  | { at: 'nowhere'; why: string }
   | { at: 'missing'; epic: string }
   | { at: 'unreachable'; why: string }
   | { at: 'read'; citations: Citations }
 
 export function App() {
-  const { epic, kept, framed, epics, keep } = useRoadmap()
+  const { epic, project, kept, framed, epics, keep } = useRoadmap()
   const [documents, setDocuments] = useState<Brief[]>([])
   const [picked, setPicked] = useState<string | null>(null)
   const [sight, setSight] = useState<Sight>({ at: 'waiting' })
@@ -80,20 +83,23 @@ export function App() {
     keep(writing({ sifting, ordering }))
   }, [restored, framed, sifting, ordering, keep])
 
+  /** `&project=…`, or nothing — the server then answers that there is nowhere to look. */
+  const scoped = project === null ? '' : `project=${encodeURIComponent(project)}`
+
   useEffect(() => {
     let live = true
-    fetch('./api/documents')
+    fetch(`./api/documents?${scoped}`)
       .then((r) => r.json())
-      .then((body: { configured?: boolean; documents?: Brief[] }) => {
+      .then((body: { nowhere?: boolean; documents?: Brief[] }) => {
         if (!live) return
         setDocuments(Array.isArray(body.documents) ? body.documents : [])
-        if (body.configured !== true) {
+        if (body.nowhere === true) {
           setSight({
-            at: 'unconfigured',
+            at: 'nowhere',
             why:
-              'This app reads a .bib and the .tex beside it out of directories named by environment ' +
-              'variables, and none of KEHIKKO_PAPERS_DIR, KEHIKKO_ROADMAP_DIR or KEHIKKO_THESIS_DIR is set ' +
-              'for the process serving this page.',
+              'This app reads a .bib and the .tex beside it out of the open project, at ' +
+              '.kehikot/paper/<epic>/ — the same place the paper module reads a paper — and no project is open ' +
+              'on this canvas.',
           })
         }
       })
@@ -104,20 +110,20 @@ export function App() {
     return () => {
       live = false
     }
-  }, [])
+  }, [scoped])
 
   useEffect(() => {
     if (!showing) return
     let live = true
     setSight({ at: 'waiting' })
     setOpenKey(null)
-    fetch(`./api/citations?epic=${encodeURIComponent(showing)}`)
+    fetch(`./api/citations?epic=${encodeURIComponent(showing)}&${scoped}`)
       .then(async (r) => ({ status: r.status, body: (await r.json()) as { citations?: Citations; error?: string } }))
       .then(({ status, body }) => {
         if (!live) return
         if (status === 200 && body.citations) setSight({ at: 'read', citations: body.citations })
         else if (status === 404) setSight({ at: 'missing', epic: showing })
-        else setSight({ at: 'unconfigured', why: body.error ?? 'this app has not been told where to look' })
+        else setSight({ at: 'nowhere', why: body.error ?? 'there is no project open to look in' })
       })
       .catch((e: unknown) => {
         if (!live) return
@@ -126,7 +132,7 @@ export function App() {
     return () => {
       live = false
     }
-  }, [showing])
+  }, [showing, scoped])
 
   const rows = sight.at === 'read' ? sight.citations.rows : []
   const shown = useMemo(() => order(sift(rows, sifting), ordering), [rows, sifting, ordering])
@@ -192,7 +198,7 @@ function Head({
         * Drawn whenever there is more than one document or nothing has said
         * which — never hidden because a host happens to be framing this, since
         * a reader looking at a bibliography beside one paper may perfectly well
-        * want another. `documents` is this machine's own disk and needs nobody.
+        * want another. `documents` is the open project's own folder and needs nobody.
         */}
       {documents.length > 1 && (
         <div className="mt-1 flex flex-wrap gap-1">
@@ -256,19 +262,18 @@ function Body({
   switch (sight.at) {
     case 'waiting':
       return say('Reading…')
-    case 'unconfigured':
+    case 'nowhere':
       return say(
-        'Nobody has said where the documents are',
+        'No project is open, so there are no documents to read',
         sight.why,
-        'Start it again with KEHIKKO_THESIS_DIR=… ./run.sh for a single document, or ' +
-          'KEHIKKO_PAPERS_DIR=…/data/papers for a directory of them, and this page fills in.',
+        'Open a project on this canvas and this page fills in from its .kehikot/paper/ folder.',
       )
     case 'unreachable':
       return say('This page could not reach its own server', sight.why)
     case 'missing':
       return say(
-        `Nothing on this machine holds a document for “${sight.epic}”`,
-        'That is not a failure to read one — there is no folder for it, or the folder has no main.tex in it.',
+        `Nothing in this project holds a document for “${sight.epic}”`,
+        `That is not a failure to read one — there is no .kehikot/paper/${sight.epic}/ in the project, or it has no main.tex in it.`,
       )
     case 'read':
       break

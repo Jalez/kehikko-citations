@@ -1,11 +1,13 @@
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { isAbsolute, join, relative, resolve } from 'node:path'
+
+import { moduleDir } from 'roadmap-module-protocol'
 
 import { findCites, crossReference, type Cite, type CrossReference } from './bib/cite.ts'
 import { parseBib, view, type BibEntry, type BibView } from './bib/parse.ts'
 
 /**
- * The documents on this machine, and the one rule about where they come from.
+ * The documents in the open project, and the one rule about where they come from.
  *
  * ## This app owns no data
  *
@@ -16,20 +18,33 @@ import { parseBib, view, type BibEntry, type BibView } from './bib/parse.ts'
  * and no cache. Every read opens the file, because the whole value of the page
  * is that a reload shows the entry the author just added.
  *
- * ## The same variables as the paper module, deliberately
+ * ## The same place as the paper module, deliberately
  *
- * `KEHIKKO_PAPERS_DIR` / `KEHIKKO_ROADMAP_DIR` name a directory of papers,
- * `KEHIKKO_THESIS_DIR` names one document at the top of its own tree.
+ * A paper lives at `<project>/.kehikot/paper/<epic>/main.tex`, in the project
+ * the host says is open (`roadmap.context.projectPath`). That is
+ * `kehikko-paper`'s rule — see the essay at the top of its `store.ts` — and this
+ * app finds documents by exactly the same rule, through the same protocol
+ * helper (`moduleDir(project, 'roadmap.paper')`), so the two can never disagree
+ * about where a paper is.
  *
- * Reading the same variables is not the same as depending on the paper module.
- * Nothing here calls it, imports from it, or needs it to be running; the two
- * are independent programs that happen to be pointed at the same directory the
- * way two editors open the same file. The alternative — asking the paper module
- * over HTTP for its bibliography — would make this page blank whenever port
- * 7870 is down, for data sitting on the same disk this process can already
- * read. And a THIRD set of variables would mean the same directory configured
- * twice, which is the kind of thing that gets one of the two wrong and stays
- * wrong for months.
+ * This used to be three environment variables — `KEHIKKO_PAPERS_DIR`,
+ * `KEHIKKO_ROADMAP_DIR` and `KEHIKKO_THESIS_DIR` — read because the paper
+ * module read them. The paper module dropped them for reasons that apply here
+ * word for word: they were one restart from gone, they were per-machine where
+ * the fact is per-project, and they let a container on a canvas show another
+ * project's material with no way to know. They are ignored now if still set.
+ *
+ * Finding the folder the same way is not the same as depending on the paper
+ * module. Nothing here calls it, imports from it, or needs it to be running;
+ * the two are independent programs that happen to look in the same directory
+ * the way two editors open the same file.
+ *
+ * ## No project, no documents
+ *
+ * `null` in, nothing out. No `process.cwd()`, which is this module's own
+ * directory; no "the only project that has papers"; no compiled-in path. A page
+ * with no project open has nowhere to read, which is an ordinary state with a
+ * screen of its own, and an MCP call that names none is told to.
  *
  * ## The confinement is copied, not shared, and that is the point
  *
@@ -40,16 +55,12 @@ import { parseBib, view, type BibEntry, type BibView } from './bib/parse.ts'
  * copies are covered by their own tests. If one is ever changed, the other has
  * to be changed deliberately, which is exactly the review this code deserves.
  */
-export function papersDir(env: Record<string, string | undefined> = process.env): string | null {
-  const direct = env.KEHIKKO_PAPERS_DIR
-  if (direct) return existsSync(direct) ? resolve(direct) : null
-  const roadmap = env.KEHIKKO_ROADMAP_DIR
-  if (roadmap) {
-    const guess = join(roadmap, 'data', 'papers')
-    return existsSync(guess) ? resolve(guess) : null
-  }
-  return null
-}
+
+/**
+ * The module whose folder papers live in. Not this module's id: a paper is the
+ * paper module's material, and this app reads it where that module keeps it.
+ */
+export const PAPER_MODULE = 'roadmap.paper'
 
 /** A directory holding one document: a `main.tex` and whatever it includes. */
 export interface DocumentRoot {
@@ -63,14 +74,40 @@ export function isEpic(value: unknown): value is string {
   return typeof value === 'string' && SLUG.test(value)
 }
 
-/** A second readable root naming one document. See the paper module's essay. */
-export function thesisRoot(env: Record<string, string | undefined> = process.env): DocumentRoot | null {
-  const dir = env.KEHIKKO_THESIS_DIR
-  if (!dir) return null
-  const epic = env.KEHIKKO_THESIS_EPIC ?? 'thesis'
-  if (!isEpic(epic)) return null
-  if (!existsSync(join(dir, MAIN))) return null
-  return { epic, dir: resolve(dir) }
+/**
+ * The project as this app names it to itself: absolute, real, a directory — or
+ * `null`, which is the ordinary state of no project being open.
+ *
+ * The paper module's function, for the paper module's reasons: realpath'd
+ * because every fence downstream compares resolved paths, and `null` for every
+ * refusal without saying which — this app is read-only and answers on
+ * loopback, and a caller who could tell "not absolute" from "nothing there"
+ * could ask it which directories exist on the disk, one question at a time.
+ */
+export function projectOf(projectPath: string | null | undefined): string | null {
+  if (typeof projectPath !== 'string') return null
+  const raw = projectPath.trim()
+  if (!raw || !isAbsolute(raw)) return null
+  try {
+    const real = realpathSync(raw)
+    return statSync(real).isDirectory() ? real : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Where a project keeps its papers — `<project>/.kehikot/paper` — confined to
+ * the project, or null when that folder is not really inside it.
+ *
+ * `moduleDir` knows the folder's name; this only refuses a `.kehikot` or a
+ * `paper/` that is a symlink out of the project, which a string join would
+ * walk straight through.
+ */
+export function papersDir(project: string): string | null {
+  const dir = moduleDir(project, PAPER_MODULE)
+  if (dir === null) return null
+  return confine(project, relative(project, dir))
 }
 
 /**
@@ -106,35 +143,29 @@ const MAIN = 'main.tex'
 const MAX_BYTES = 4_000_000
 
 /**
- * Every root this process may read, papers directory first.
+ * Every paper this project holds, by the paper module's rule.
  *
- * A slug that exists under both loses in the thesis root, so an existing paper
- * keeps working and the new variable is the one that visibly does nothing.
+ * One directory read, and the folder's name is the epic. A directory with no
+ * `main.tex` is not a paper — that is what keeps an abandoned folder from
+ * putting a document in the picker that could only ever say "nothing here".
+ * Every root is confined and resolved before it is a root.
  */
-export function roots(
-  dir: string | null = papersDir(),
-  thesis: DocumentRoot | null = thesisRoot(),
-): DocumentRoot[] {
-  const out: DocumentRoot[] = []
-  const seen = new Set<string>()
-  if (dir) {
-    let entries: string[] = []
-    try {
-      entries = readdirSync(dir)
-    } catch {
-      entries = []
-    }
-    for (const entry of entries.sort()) {
-      if (!isEpic(entry) || seen.has(entry)) continue
-      const root = confine(dir, entry)
-      if (!root || !existsSync(join(root, MAIN))) continue
-      seen.add(entry)
-      out.push({ epic: entry, dir: root })
-    }
+export function roots(project: string | null): DocumentRoot[] {
+  if (project === null) return []
+  const dir = papersDir(project)
+  if (dir === null) return []
+  let entries: string[] = []
+  try {
+    entries = readdirSync(dir)
+  } catch {
+    return []
   }
-  if (thesis && !seen.has(thesis.epic)) {
-    const real = confine(thesis.dir, '.')
-    if (real) out.push({ epic: thesis.epic, dir: real })
+  const out: DocumentRoot[] = []
+  for (const entry of entries.sort()) {
+    if (!isEpic(entry)) continue
+    const root = confine(dir, entry)
+    if (!root || !existsSync(join(root, MAIN))) continue
+    out.push({ epic: entry, dir: root })
   }
   return out
 }
@@ -259,12 +290,9 @@ function read(path: string): string | null {
  * and the file is empty or missing". A picker that showed a dash for both would
  * hide the more actionable of the two.
  */
-export function list(
-  dir: string | null = papersDir(),
-  thesis: DocumentRoot | null = thesisRoot(),
-): Brief[] {
+export function list(project: string | null): Brief[] {
   const out: Brief[] = []
-  for (const root of roots(dir, thesis)) {
+  for (const root of roots(project)) {
     const main = confine(root.dir, MAIN)
     const source = main ? read(main) : null
     if (source === null) continue
@@ -296,13 +324,9 @@ export function list(
  * One level deep, deliberately, matching LaTeX's own rule that `\include`
  * cannot nest — and making a cycle impossible rather than merely unlikely.
  */
-export function readCitations(
-  epic: string,
-  dir: string | null = papersDir(),
-  thesis: DocumentRoot | null = thesisRoot(),
-): Citations | null {
+export function readCitations(epic: string, project: string | null): Citations | null {
   if (!isEpic(epic)) return null
-  const root = roots(dir, thesis).find((r) => r.epic === epic)?.dir
+  const root = roots(project).find((r) => r.epic === epic)?.dir
   if (!root) return null
   const main = confine(root, MAIN)
   const source = main ? read(main) : null

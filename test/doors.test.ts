@@ -17,11 +17,14 @@ import { ID, MANIFEST } from '../manifest.ts'
  */
 
 const root = mkdtempSync(join(tmpdir(), 'kehikko-citations-doors-'))
+/* The project, with its paper where the paper module keeps it. */
+const project = join(root, 'project')
+const thesis = join(project, '.kehikot', 'paper', 'thesis')
 
 beforeAll(() => {
-  mkdirSync(join(root, 'thesis', 'chapters'), { recursive: true })
+  mkdirSync(join(thesis, 'chapters'), { recursive: true })
   writeFileSync(
-    join(root, 'thesis', 'main.tex'),
+    join(thesis, 'main.tex'),
     [
       '\\addbibresource{references.bib}',
       '\\title{A thesis}',
@@ -30,22 +33,22 @@ beforeAll(() => {
       '\\end{document}',
     ].join('\n'),
   )
-  writeFileSync(join(root, 'thesis', 'chapters', 'one.tex'), 'A claim \\autocite{cited}. A ghost \\autocite{ghost}.')
+  writeFileSync(join(thesis, 'chapters', 'one.tex'), 'A claim \\autocite{cited}. A ghost \\autocite{ghost}.')
   writeFileSync(
-    join(root, 'thesis', 'references.bib'),
+    join(thesis, 'references.bib'),
     ['@article{cited, author = {A, One}, year = {2001}}', '@misc{nevercited, author = {B, Two}, year = {2002}}'].join(
       '\n',
     ),
   )
-  process.env.KEHIKKO_THESIS_DIR = join(root, 'thesis')
 })
 
 afterAll(() => {
-  delete process.env.KEHIKKO_THESIS_DIR
   rmSync(root, { recursive: true, force: true })
 })
 
-const get = (path: string, query = '') => answer('GET', path, new URLSearchParams(query), null)
+/* Every read names the project, as the page does from `roadmap.context.projectPath`. */
+const get = (path: string, query = '', at: string | null = project) =>
+  answer('GET', path, new URLSearchParams(at === null ? query : `${query}${query ? '&' : ''}project=${encodeURIComponent(at)}`), null)
 const post = (path: string, body: Record<string, unknown> | null) =>
   answer('POST', path, new URLSearchParams(), body)
 
@@ -83,13 +86,26 @@ describe('the ordinary doors', () => {
     expect(get('/healthz')?.body).toEqual({ ok: true, id: ID, version: MANIFEST.version })
   })
 
-  test('the document list says whether anybody has configured this', () => {
-    /* Two fields, not one empty list. "No documents here" and "nobody said
-       where to look" are different sentences and the page draws different
-       screens for them. */
-    const body = get('/api/documents')?.body as { configured: boolean; documents: { epic: string }[] }
-    expect(body.configured).toBe(true)
+  test('the document list says whether there is a project to look in', () => {
+    /* Two fields, not one empty list. "No documents here" and "no project to
+       look in" are different sentences and the page draws different screens
+       for them. */
+    const body = get('/api/documents')?.body as { nowhere: boolean; documents: { epic: string }[] }
+    expect(body.nowhere).toBe(false)
     expect(body.documents.map((d) => d.epic)).toEqual(['thesis'])
+  })
+
+  test('with no project, the list says "nowhere" and a document read says why', () => {
+    const body = get('/api/documents', '', null)?.body as { nowhere: boolean; documents: unknown[] }
+    expect(body).toMatchObject({ nowhere: true, documents: [] })
+    const reply = get('/api/citations', 'epic=thesis', null)
+    expect(reply?.status).toBe(503)
+    expect((reply?.body as { error: string }).error).toContain('.kehikot/paper/')
+  })
+
+  test('a relative project path is no project, not this program’s own folder', () => {
+    const body = get('/api/documents', '', 'project')?.body as { nowhere: boolean }
+    expect(body.nowhere).toBe(true)
   })
 
   test('one document comes back with its entries and its broken citations', () => {
@@ -121,7 +137,12 @@ describe('the ordinary doors', () => {
 
 describe('what an agent is told', () => {
   const call = (name: string, args: Record<string, unknown> = {}) => {
-    const reply = post('/mcp', { jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name, arguments: args } })
+    const reply = post('/mcp', {
+      jsonrpc: '2.0',
+      id: 9,
+      method: 'tools/call',
+      params: { name, arguments: { project, ...args } },
+    })
     return (reply?.body as { result: { content: { text: string }[] } }).result.content[0]!.text
   }
 
@@ -143,19 +164,17 @@ describe('what an agent is told', () => {
      * "Nothing is wrong" and "this tool returned nothing" look identical to an
      * agent, and only one of them is a claim worth making.
      */
-    mkdirSync(join(root, 'clean'), { recursive: true })
-    writeFileSync(
-      join(root, 'clean', 'main.tex'),
-      '\\addbibresource{r.bib}\n\\begin{document}\\autocite{a}\\end{document}',
-    )
-    writeFileSync(join(root, 'clean', 'r.bib'), '@misc{a, year = {2000}}')
-    const before = process.env.KEHIKKO_THESIS_DIR
-    process.env.KEHIKKO_THESIS_DIR = join(root, 'clean')
-    try {
-      expect(call('problems', { epic: 'thesis' })).toContain('Nothing wrong')
-    } finally {
-      process.env.KEHIKKO_THESIS_DIR = before
-    }
+    const clean = join(project, '.kehikot', 'paper', 'clean')
+    mkdirSync(clean, { recursive: true })
+    writeFileSync(join(clean, 'main.tex'), '\\addbibresource{r.bib}\n\\begin{document}\\autocite{a}\\end{document}')
+    writeFileSync(join(clean, 'r.bib'), '@misc{a, year = {2000}}')
+    expect(call('problems', { epic: 'clean' })).toContain('Nothing wrong')
+  })
+
+  test('a tool with no project says where documents are expected, rather than guessing', () => {
+    const text = call('bibliography', { project: undefined })
+    expect(text).toContain('No project is open')
+    expect(text).toContain('.kehikot/paper/')
   })
 
   test('an unknown tool is a JSON-RPC error rather than a thrown exception', () => {
