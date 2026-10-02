@@ -1,5 +1,5 @@
 import { ID, MANIFEST, VERSION } from './manifest.ts'
-import { isEpic, list, papersDir, readCitations, thesisRoot, type DocumentRoot } from './store.ts'
+import { isEpic, list, projectOf, readCitations } from './store.ts'
 
 /**
  * Every door this app answers on that is not the page itself.
@@ -39,6 +39,8 @@ import { isEpic, list, papersDir, readCitations, thesisRoot, type DocumentRoot }
  */
 
 const MAX_SLUG = 80
+/** As long as a path may be, matching the protocol's own `LIMITS.PATH`. */
+const MAX_PROJECT = 4096
 
 function str(value: unknown, max: number): string {
   if (typeof value === 'number' && Number.isFinite(value)) return String(value).slice(0, max)
@@ -57,25 +59,35 @@ const ok = (body: unknown): Reply => ({ status: 200, body })
 const bad = (why: string, status = 400): Reply => ({ status, body: { ok: false, error: why } })
 
 /**
- * The sentence this app says when it has not been told where to look.
+ * The sentence this app says when there is no project to look in.
  *
  * One string, used by the page and by every MCP tool, because a person reading
- * it in a terminal and a person reading it in a container are looking at the same
- * problem. It says what to set rather than that something is unset: "no papers
- * directory" is a fact somebody can do nothing with.
+ * it in a terminal and a person reading it in a container are looking at the
+ * same problem. It says where the documents are expected rather than that
+ * something is missing: "no project" is a fact somebody can do nothing with.
+ *
+ * The same answer for no project and for a project path this app will not use
+ * (relative, or not a folder) — see `projectOf` on why the two are not told
+ * apart.
  */
-const UNCONFIGURED =
-  'This app has not been told where the documents are. Set KEHIKKO_PAPERS_DIR to the directory holding one ' +
-  'folder per epic, or KEHIKKO_ROADMAP_DIR to a roadmap checkout. For a single document that is not part of ' +
-  'a roadmap — a thesis, with its own main.tex at the top of its own repository — set KEHIKKO_THESIS_DIR to ' +
-  'that directory instead, or as well. Then restart it.'
+export const NOWHERE =
+  'No project is open, so there is nowhere to look for documents. Papers live in the project, at ' +
+  '<project>/.kehikot/paper/<epic>/main.tex — the same place the paper module reads them — and this app reads ' +
+  'them there and nowhere else. Open a project on this canvas, or pass `project` as the absolute path of the ' +
+  'project folder. (KEHIKKO_PAPERS_DIR, KEHIKKO_ROADMAP_DIR and KEHIKKO_THESIS_DIR are no longer read.)'
 
-/** Where this process may read, as one question with one answer. */
-function where(): { dir: string | null; thesis: DocumentRoot | null; configured: boolean } {
-  const dir = papersDir()
-  const thesis = thesisRoot()
-  return { dir, thesis, configured: dir !== null || thesis !== null }
+/** The project a caller named, resolved, or null. */
+function projectIn(value: unknown): string | null {
+  return projectOf(str(value, MAX_PROJECT))
 }
+
+/** The `project` argument both tools take, described once. */
+const PROJECT = {
+  type: 'string',
+  description:
+    'Absolute path of the project folder — the same path a host puts in roadmap.context.projectPath. Papers are read ' +
+    'from <project>/.kehikot/paper/<epic>/.',
+} as const
 
 /* ------------------------------------------------------------------ *
  * The MCP door
@@ -99,25 +111,26 @@ const TOOLS: Record<string, { description: string; schema: object; run: ToolCall
   bibliography: {
     description:
       'Every entry in one document’s .bib, with how many times the prose cites it. A count of 0 means the ' +
-      'entry is in the bibliography and no \\cite names it. Omit "epic" to list the documents on this machine.',
+      'entry is in the bibliography and no \\cite names it. Omit "epic" to list the documents in the project.',
     schema: {
       type: 'object',
-      properties: { epic: { type: 'string', description: 'e.g. thesis' } },
+      properties: { project: PROJECT, epic: { type: 'string', description: 'e.g. thesis' } },
+      required: ['project'],
     },
     run(args) {
-      const w = where()
-      if (!w.configured) return UNCONFIGURED
+      const project = projectIn(args.project)
+      if (project === null) return NOWHERE
       const epic = str(args.epic, MAX_SLUG)
       if (!epic) {
-        const all = list(w.dir, w.thesis)
-        if (!all.length) return 'No documents here.'
+        const all = list(project)
+        if (!all.length) return 'No documents in this project — nothing under .kehikot/paper/ has a main.tex.'
         return all
           .map((d) => `${d.epic}\t${d.entries === null ? 'no bibliography' : `${d.entries} entries`}\t${d.title ?? ''}`)
           .join('\n')
       }
       if (!isEpic(epic)) return 'that is not an epic name'
-      const found = readCitations(epic, w.dir, w.thesis)
-      if (!found) return `no document for "${epic}" here`
+      const found = readCitations(epic, project)
+      if (!found) return `no document for "${epic}" in this project`
       if (found.bib === null) return `"${epic}" names no bibliography (no \\addbibresource or \\bibliography).`
       const lines = found.rows.map(
         (r) =>
@@ -138,16 +151,16 @@ const TOOLS: Record<string, { description: string; schema: object; run: ToolCall
       'parsed. Read this before claiming a document’s references are in order.',
     schema: {
       type: 'object',
-      properties: { epic: { type: 'string' } },
-      required: ['epic'],
+      properties: { project: PROJECT, epic: { type: 'string' } },
+      required: ['project', 'epic'],
     },
     run(args) {
-      const w = where()
-      if (!w.configured) return UNCONFIGURED
+      const project = projectIn(args.project)
+      if (project === null) return NOWHERE
       const epic = str(args.epic, MAX_SLUG)
       if (!isEpic(epic)) return 'that is not an epic name'
-      const found = readCitations(epic, w.dir, w.thesis)
-      if (!found) return `no document for "${epic}" here`
+      const found = readCitations(epic, project)
+      if (!found) return `no document for "${epic}" in this project`
       const lines: string[] = []
       for (const b of found.broken) {
         lines.push(
@@ -242,20 +255,18 @@ export function answer(
   }
 
   if (path === '/api/documents' && method === 'GET') {
-    const w = where()
+    const project = projectIn(query.get('project'))
     /*
-     * `configured` and `documents` are separate fields rather than one empty
-     * list, because "there are no documents here" and "nobody has said where to
-     * look" are two different sentences and the page shows different screens
-     * for them. An app that says "none" and quietly means "I was not
-     * configured" has told somebody the opposite of the truth.
+     * `nowhere` and `documents` are separate fields rather than one empty
+     * list, because "there are no documents in this project" and "there is no
+     * project to look in" are two different sentences and the page shows
+     * different screens for them. An app that says "none" and quietly means "I
+     * had nowhere to look" has told somebody the opposite of the truth.
      */
     return ok({
       ok: true,
-      configured: w.configured,
-      dir: w.dir,
-      thesis: w.thesis?.dir ?? null,
-      documents: list(w.dir, w.thesis),
+      nowhere: project === null,
+      documents: list(project),
     })
   }
 
@@ -265,10 +276,10 @@ export function answer(
        distinguished "no such document" from "not an epic name" would be a way
        to enumerate what is on this disk. */
     if (!isEpic(epic)) return bad('that is not an epic name')
-    const w = where()
-    if (!w.configured) return { status: 503, body: { ok: false, error: UNCONFIGURED, configured: false } }
-    const found = readCitations(epic, w.dir, w.thesis)
-    if (!found) return bad(`no document for "${epic}" here`, 404)
+    const project = projectIn(query.get('project'))
+    if (project === null) return { status: 503, body: { ok: false, error: NOWHERE, nowhere: true } }
+    const found = readCitations(epic, project)
+    if (!found) return bad(`no document for "${epic}" in this project`, 404)
     return ok({ ok: true, citations: found })
   }
 

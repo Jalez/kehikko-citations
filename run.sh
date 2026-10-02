@@ -31,22 +31,13 @@
 #   - `cd` to this script's own directory, so `page/` and `bib/` are found
 #     however this was invoked.
 #
-# ## The one thing this program needs told
+# ## Nothing to configure
 #
-# Where the documents are, and it reads the SAME variables the paper module
-# reads: `KEHIKKO_PAPERS_DIR` (a directory of one folder per epic), or
-# `KEHIKKO_ROADMAP_DIR` with `data/papers` under it, or `KEHIKKO_THESIS_DIR`
-# naming one document at the top of its own repository.
-#
-# Reading the same variables is not depending on that module. Nothing here calls
-# it, imports from it, or needs it running; the two are independent programs
-# pointed at the same directory the way two editors open the same file. A third
-# set of variables would mean the same directory configured twice, which is the
-# kind of thing that gets one of the two wrong and stays wrong for months.
-#
-# There is deliberately no default. Unset, this still starts, still serves, and
-# says on its own page what to set — a misconfiguration that announces itself is
-# worth far more than one that renders an empty world convincingly.
+# Documents are read from the project the host says is open, at
+# `<project>/.kehikot/paper/<epic>/main.tex` — where the paper module reads
+# papers. `KEHIKKO_PAPERS_DIR`, `KEHIKKO_ROADMAP_DIR` and `KEHIKKO_THESIS_DIR`
+# used to say where to look and are no longer read; the paper module dropped
+# them first, and the essay at the top of `store.ts` says why.
 #
 # It does NOT register a module that had none. Registration is a deliberate act
 # by a person — see `register.ts` — and a start script that quietly wrote into
@@ -75,9 +66,9 @@ if [ ! -d node_modules ]; then
   bun install >&2
 fi
 
-if [ -z "${KEHIKKO_PAPERS_DIR:-}" ] && [ -z "${KEHIKKO_ROADMAP_DIR:-}" ] && [ -z "${KEHIKKO_THESIS_DIR:-}" ]; then
-  echo "citations: none of KEHIKKO_PAPERS_DIR, KEHIKKO_ROADMAP_DIR or KEHIKKO_THESIS_DIR is set." >&2
-  echo "citations: starting anyway; the page will say so rather than pretending there are no documents." >&2
+if [ -n "${KEHIKKO_PAPERS_DIR:-}${KEHIKKO_ROADMAP_DIR:-}${KEHIKKO_THESIS_DIR:-}" ]; then
+  echo "citations: KEHIKKO_PAPERS_DIR / KEHIKKO_ROADMAP_DIR / KEHIKKO_THESIS_DIR are set and no longer read." >&2
+  echo "citations: documents come from the open project, at <project>/.kehikot/paper/<epic>/main.tex." >&2
 fi
 
 exec bunx vite

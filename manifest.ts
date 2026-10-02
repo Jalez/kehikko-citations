@@ -11,13 +11,13 @@ export const VERSION = '1.0.0'
  * `run.sh` and `Number(process.env.PORT ?? 7930)` in `register.ts` — with
  * nothing keeping the two in step, and a third copy of the number sitting in
  * `~/.roadmap/modules` from whenever somebody last ran the second. That is the
- * failure `run.sh` already argues against for the document roots: the same thing
+ * failure `run.sh` used to argue against for the document roots: the same thing
  * configured twice is the kind of thing that gets one of the two wrong and stays
  * wrong for months.
  *
  * It is here rather than in `vite.config.ts` because `register.ts` needs it too,
  * and importing a Vite config to read one number would build the whole plugin
- * list and walk the papers root on the way to finding out what to write down.
+ * list on the way to finding out what to write down.
  *
  * It is a PREFERENCE and not a promise. 7820 through 7960 belong to the other
  * modules on this machine, and if something else holds 7930 when this starts
@@ -42,7 +42,7 @@ export const PREFERRED_PORT = 7930
  *   it is looking at the directory; it cannot see which epics EXIST. An epic
  *   whose paper has no bibliography at all is worth putting on screen and is
  *   invisible from here without asking. Enrichment, drawn as enrichment:
- *   refused or unanswered, the picker is still every document on this machine.
+ *   refused or unanswered, the picker is still every document in the open project.
  * - **`state:keep`.** How the filter and the order survive a reload. The host
  *   keeps one opaque string for this module and never reads it; the format
  *   lives entirely in `src/live/keep.ts`. This is the capability that makes the

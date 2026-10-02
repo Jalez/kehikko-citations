@@ -10,7 +10,6 @@ import { defineConfig, type Plugin } from 'vite'
 import { MANIFEST, answer, type Reply } from './doors.ts'
 import { ID, PREFERRED_PORT } from './manifest.ts'
 import { page } from './page/document.ts'
-import { list, papersDir, thesisRoot } from './store.ts'
 
 /**
  * Every door this app answers on, served by the one process that serves the
@@ -42,31 +41,22 @@ function doors(): Plugin {
     name: 'citations-doors',
     configureServer(server) {
       /*
-       * Say at startup what this program can see.
+       * Say at startup where documents come from.
        *
-       * Not decoration. The one configuration mistake this app can make is
-       * being pointed at the wrong directory, and the symptom is a page that
-       * loads perfectly and says every document has no bibliography — a working
-       * app reporting an empty world. Printing the directories and the count at
-       * the moment somebody starts it turns a confusing afternoon into a line
-       * they already read.
+       * This used to print the configured directories and a count per
+       * document, because the one mistake this app could make was being
+       * pointed at the wrong directory. There is nothing to point any more: a
+       * document is found in the project the host says is open, and this
+       * process does not know which project that is until a request names one.
+       * So the line says the RULE — and names the variables that stopped doing
+       * anything, for whoever set one in a shell profile months ago. The paper
+       * module prints the same sentence for the same reason.
        */
-      const dir = papersDir()
-      const thesis = thesisRoot()
-      if (!dir && !thesis) {
-        server.config.logger.warn(
-          'citations: no directory configured. Set KEHIKKO_PAPERS_DIR, KEHIKKO_ROADMAP_DIR or ' +
-            'KEHIKKO_THESIS_DIR and restart; the app will serve and say so on its own page until then.',
-        )
-      } else {
-        /* Each root on its own line, because a total folding two roots into one
-           number would hide the case where one of them found nothing. */
-        for (const doc of list(dir, thesis)) {
-          server.config.logger.info(
-            `citations: ${doc.epic} — ${doc.entries === null ? 'no bibliography named' : `${doc.entries} entries`}`,
-          )
-        }
-      }
+      server.config.logger.info(
+        'citations: documents come from the open project — <project>/.kehikot/paper/<epic>/main.tex, the same '
+          + 'place the paper module reads them. KEHIKKO_PAPERS_DIR, KEHIKKO_ROADMAP_DIR and KEHIKKO_THESIS_DIR are '
+          + 'no longer read and are ignored if still set.',
+      )
 
       server.middlewares.use((request, response, next) => {
         const url = new URL(request.url ?? '/', 'http://127.0.0.1')

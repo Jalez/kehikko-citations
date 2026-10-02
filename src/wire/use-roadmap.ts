@@ -48,6 +48,12 @@ import { ID } from '../../manifest.ts'
 export interface Roadmap {
   /** The epic the canvas is on, or null when nothing has said. */
   epic: string | null
+  /**
+   * `roadmap.context.projectPath`, or null when the host has none or nothing
+   * has greeted. Documents are read from `<project>/.kehikot/paper/`, so this
+   * decides WHICH documents exist rather than which one is drawn.
+   */
+  project: string | null
   /** `light` or `dark`, as the host says, applied to the document element. */
   theme: 'light' | 'dark'
   /**
@@ -74,6 +80,7 @@ export interface Roadmap {
 export function useRoadmap(): Roadmap {
   const host = useRef<Connection | null>(null)
   const [epic, setEpic] = useState<string | null>(null)
+  const [project, setProject] = useState<string | null>(null)
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
   const [kept, setKept] = useState<string | null | undefined>(undefined)
   const [framed, setFramed] = useState(false)
@@ -83,6 +90,7 @@ export function useRoadmap(): Roadmap {
     const take = (context: ModuleContext) => {
       setEpic(context.epic)
       setTheme(context.theme)
+      setProject(typeof context.projectPath === 'string' && context.projectPath.trim() ? context.projectPath : null)
     }
     const live = connect(ID, {
       onHello: (context, state) => {
@@ -167,5 +175,5 @@ export function useRoadmap(): Roadmap {
     void host.current?.request('state.set', { state }).catch(() => {})
   }, [])
 
-  return { epic, theme, kept, framed, epics, keep }
+  return { epic, project, theme, kept, framed, epics, keep }
 }
