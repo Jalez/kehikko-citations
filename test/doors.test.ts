@@ -46,7 +46,7 @@ afterAll(() => {
   rmSync(root, { recursive: true, force: true })
 })
 
-/* Every read names the project, as the page does from `roadmap.context.projectPath`. */
+/* Every read names the project, as the page does from `kehikot.context.projectPath`. */
 const get = (path: string, query = '', at: string | null = project) =>
   answer('GET', path, new URLSearchParams(at === null ? query : `${query}${query ? '&' : ''}project=${encodeURIComponent(at)}`), null)
 const post = (path: string, body: Record<string, unknown> | null) =>
@@ -188,7 +188,7 @@ describe('the manifest', () => {
     /* `manifest.ts` runs `manifestSchema.parse` at module load, so importing it
        at all is the check. A field that silently vanished here means a stale
        copy of the protocol package — `bun pm cache rm` then `bun update`. */
-    expect(MANIFEST.id).toBe('roadmap.citations')
+    expect(MANIFEST.id).toBe('kehikot.citations')
     expect(MANIFEST.entry).toBe('/app')
   })
 

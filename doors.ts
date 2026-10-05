@@ -85,7 +85,7 @@ function projectIn(value: unknown): string | null {
 const PROJECT = {
   type: 'string',
   description:
-    'Absolute path of the project folder — the same path a host puts in roadmap.context.projectPath. Papers are read ' +
+    'Absolute path of the project folder — the same path a host puts in kehikot.context.projectPath. Papers are read ' +
     'from <project>/.kehikot/paper/<epic>/.',
 } as const
 

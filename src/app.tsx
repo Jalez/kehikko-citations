@@ -6,7 +6,7 @@ import { DEFAULT_ORDER, order, type Ordering } from './live/order.ts'
 import { EVERYTHING, narrowing, sift, type Sifting } from './live/sift.ts'
 import { BrokenList, Row } from './view/citation-row.tsx'
 import { Toolbar } from './view/toolbar.tsx'
-import { useRoadmap } from './wire/use-roadmap.ts'
+import { useKehikot } from './wire/use-kehikot.ts'
 import { cn } from '@/lib/utils.ts'
 
 /**
@@ -29,7 +29,7 @@ import { cn } from '@/lib/utils.ts'
  *
  * `/api/documents` whenever the project changes, and `/api/citations` whenever
  * the epic or the project changes. Both name the project the host said is open
- * (`roadmap.context.projectPath`): documents are read from
+ * (`kehikot.context.projectPath`): documents are read from
  * `<project>/.kehikot/paper/`, exactly where the paper module reads them. No
  * polling and no cache: the `.bib` is being edited while this is running, and
  * the whole value of the page is that a reload shows the entry the author just
@@ -45,7 +45,7 @@ type Sight =
   | { at: 'read'; citations: Citations }
 
 export function App() {
-  const { epic, project, kept, framed, epics, keep } = useRoadmap()
+  const { epic, project, kept, framed, epics, keep } = useKehikot()
   const [documents, setDocuments] = useState<Brief[]>([])
   const [picked, setPicked] = useState<string | null>(null)
   const [sight, setSight] = useState<Sight>({ at: 'waiting' })
@@ -58,7 +58,7 @@ export function App() {
    * Without this the page writes its own defaults back to the host on the first
    * render — before the greeting has arrived with what was saved — and a
    * setting is lost every single time the container loads. `kept` being `undefined`
-   * rather than `null` is what makes the distinction possible; see `Roadmap`.
+   * rather than `null` is what makes the distinction possible; see `Kehikot`.
    */
   const [restored, setRestored] = useState(false)
 

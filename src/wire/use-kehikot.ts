@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { ModuleContext } from 'roadmap-module-protocol'
-import { connect, type Connection } from 'roadmap-module-protocol/client'
+import type { ModuleContext } from 'kehikot-module-protocol'
+import { connect, type Connection } from 'kehikot-module-protocol/client'
 
 import { ID } from '../../manifest.ts'
 
@@ -23,7 +23,7 @@ import { ID } from '../../manifest.ts'
  * ## The wire underneath, which is no longer written here
  *
  * `wire/host.ts` and `wire/mailbox.ts` — 408 lines, near-identical to the copy
- * in ten sibling modules — are one import of `roadmap-module-protocol/client`
+ * in ten sibling modules — are one import of `kehikot-module-protocol/client`
  * now. Nothing this page says on the wire changed: it answers `ready` to every
  * greeting, refuses a `goto` at once with the client's own default sentence
  * because this page passes no `onGoto`, and the backstop is still half a
@@ -49,7 +49,7 @@ export interface Roadmap {
   /** The epic the canvas is on, or null when nothing has said. */
   epic: string | null
   /**
-   * `roadmap.context.projectPath`, or null when the host has none or nothing
+   * `kehikot.context.projectPath`, or null when the host has none or nothing
    * has greeted. Documents are read from `<project>/.kehikot/paper/`, so this
    * decides WHICH documents exist rather than which one is drawn.
    */
@@ -77,7 +77,7 @@ export interface Roadmap {
   keep: (state: string) => void
 }
 
-export function useRoadmap(): Roadmap {
+export function useKehikot(): Roadmap {
   const host = useRef<Connection | null>(null)
   const [epic, setEpic] = useState<string | null>(null)
   const [project, setProject] = useState<string | null>(null)
