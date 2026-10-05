@@ -36,9 +36,9 @@ broken citations.
 **The open project, exactly where the paper module reads papers:**
 `<project>/.kehikot/paper/<epic>/main.tex`, with the `.bib` the document names
 beside it. The project is the one the host says is open
-(`roadmap.context.projectPath`); the page sends it with every read, and both MCP
+(`kehikot.context.projectPath`); the page sends it with every read, and both MCP
 tools take it as a required `project` argument (an absolute path). The folder is
-found with the protocol's `moduleDir(project, 'roadmap.paper')`, so this app and
+found with the protocol's `moduleDir(project, 'kehikot.paper')`, so this app and
 the paper module cannot disagree about where a paper is.
 
 With no project there is nowhere to look, and the page and the tools say so in

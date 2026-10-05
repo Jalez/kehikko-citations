@@ -6,7 +6,7 @@
  * There is deliberately no theming here. A module is somebody else's program
  * inside somebody else's page, and a palette invented for it is a palette that
  * fights the host on every switch of theme. What the host DOES get to say is
- * light or dark — `roadmap.hello` and `roadmap.context` both carry it — and
+ * light or dark — `kehikot.hello` and `kehikot.context` both carry it — and
  * that arrives as the `dark` class on the root element, which is the one hook
  * these tokens already have.
  *
@@ -123,7 +123,7 @@
 }
 
 /*
- * The flash a `roadmap.goto` leaves behind.
+ * The flash a `kehikot.goto` leaves behind.
  *
  * A host walks a reader to a reference; landing on it silently means the reader
  * has to work out which of forty rows just became the point. Two seconds

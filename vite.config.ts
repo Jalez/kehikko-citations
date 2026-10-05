@@ -3,8 +3,8 @@ import { resolve } from 'node:path'
 
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { WELL_KNOWN } from 'roadmap-module-protocol'
-import { serves } from 'roadmap-module-protocol/serve'
+import { LEGACY_WELL_KNOWN, WELL_KNOWN, legacyManifest } from 'kehikot-module-protocol'
+import { frameAncestors, serves } from 'kehikot-module-protocol/serve'
 import { defineConfig, type Plugin } from 'vite'
 
 import { MANIFEST, answer, type Reply } from './doors.ts'
@@ -78,6 +78,11 @@ function doors(): Plugin {
            cannot disagree about it by a character. */
         if (path === WELL_KNOWN) return send({ status: 200, body: MANIFEST })
 
+        /* The same manifest in the spelling a host from before the rename asks
+           for, so that host still finds this module. It greets in that
+           dialect and the protocol's client answers in it. */
+        if (path === LEGACY_WELL_KNOWN) return send({ status: 200, body: legacyManifest(MANIFEST) })
+
         if (path === '/app' || path === '/app/' || path === '/') {
           void server
             .transformIndexHtml(request.url ?? '/app', page(), request.originalUrl)
@@ -91,12 +96,12 @@ function doors(): Plugin {
                * `frame-ancestors` is the module's own half of the arrangement:
                * a host says which origins IT will frame, and this says who may
                * frame this. Whoever is running it decides, through
-               * `ROADMAP_ORIGIN`; the default is the address the host in this
+               * `KEHIKOT_ORIGIN` (or the older `ROADMAP_ORIGIN`), via `frameAncestors()`; the default is the address the host in this
                * workspace actually serves on.
                */
               response.setHeader(
                 'content-security-policy',
-                `frame-ancestors 'self' ${process.env.ROADMAP_ORIGIN ?? 'http://127.0.0.1:4181 http://localhost:4181'}`,
+                frameAncestors(),
               )
               response.end(html)
             })
@@ -177,7 +182,7 @@ async function body(request: IncomingMessage): Promise<Record<string, unknown> |
  *
  * and it must print nothing.
  *
- * ## No alias for `roadmap-module-protocol`
+ * ## No alias for `kehikot-module-protocol`
  *
  * The package's `exports` are correct and reaching past them is what made a
  * whole class of bug possible. A module that resolved its contract differently

@@ -38,7 +38,7 @@ const paperIn = (project: string, epic: string) => {
 }
 
 /* A project of the ordinary shape. Its paper names no bibliography, which is
-   what every roadmap paper is like, and an epic folder with no main.tex. */
+   what every Kehikot paper is like, and an epic folder with no main.tex. */
 const project = join(root, 'project')
 writeFileSync(
   join(paperIn(project, 'plain-paper'), 'main.tex'),

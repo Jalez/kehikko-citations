@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 
-import { moduleDir } from 'roadmap-module-protocol'
+import { moduleDir } from 'kehikot-module-protocol'
 
 import { findCites, crossReference, type Cite, type CrossReference } from './bib/cite.ts'
 import { parseBib, view, type BibEntry, type BibView } from './bib/parse.ts'
@@ -21,10 +21,10 @@ import { parseBib, view, type BibEntry, type BibView } from './bib/parse.ts'
  * ## The same place as the paper module, deliberately
  *
  * A paper lives at `<project>/.kehikot/paper/<epic>/main.tex`, in the project
- * the host says is open (`roadmap.context.projectPath`). That is
+ * the host says is open (`kehikot.context.projectPath`). That is
  * `kehikko-paper`'s rule — see the essay at the top of its `store.ts` — and this
  * app finds documents by exactly the same rule, through the same protocol
- * helper (`moduleDir(project, 'roadmap.paper')`), so the two can never disagree
+ * helper (`moduleDir(project, 'kehikot.paper')`), so the two can never disagree
  * about where a paper is.
  *
  * This used to be three environment variables — `KEHIKKO_PAPERS_DIR`,
@@ -60,7 +60,7 @@ import { parseBib, view, type BibEntry, type BibView } from './bib/parse.ts'
  * The module whose folder papers live in. Not this module's id: a paper is the
  * paper module's material, and this app reads it where that module keeps it.
  */
-export const PAPER_MODULE = 'roadmap.paper'
+export const PAPER_MODULE = 'kehikot.paper'
 
 /** A directory holding one document: a `main.tex` and whatever it includes. */
 export interface DocumentRoot {
