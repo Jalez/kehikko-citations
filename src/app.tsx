@@ -39,6 +39,7 @@ import { cn } from '@/lib/utils.ts'
 
 type Sight =
   | { at: 'waiting' }
+  | { at: 'idle' }
   | { at: 'nowhere'; why: string }
   | { at: 'missing'; epic: string }
   | { at: 'unreachable'; why: string }
@@ -61,6 +62,17 @@ export function App() {
    * rather than `null` is what makes the distinction possible; see `Kehikot`.
    */
   const [restored, setRestored] = useState(false)
+
+  /*
+   * A pick holds only until the canvas moves: another epic, or another project.
+   * Cleared while rendering rather than in an effect, so the render that sees
+   * the new epic never fetches the old pick under the new project.
+   */
+  const [moved, setMoved] = useState({ epic, project })
+  if (moved.epic !== epic || moved.project !== project) {
+    setMoved({ epic, project })
+    setPicked(null)
+  }
 
   /** Which document is on screen: what the host says, unless somebody picked. */
   const showing = picked ?? epic
@@ -113,10 +125,14 @@ export function App() {
   }, [scoped])
 
   useEffect(() => {
-    if (!showing) return
+    setOpenKey(null)
+    if (!showing) {
+      /* Nothing to read: drop the last document's rows rather than leave them drawn. */
+      setSight({ at: 'idle' })
+      return
+    }
     let live = true
     setSight({ at: 'waiting' })
-    setOpenKey(null)
     fetch(`./api/citations?epic=${encodeURIComponent(showing)}&${scoped}`)
       .then(async (r) => ({ status: r.status, body: (await r.json()) as { citations?: Citations; error?: string } }))
       .then(({ status, body }) => {
@@ -262,6 +278,8 @@ function Body({
   switch (sight.at) {
     case 'waiting':
       return say('Reading…')
+    case 'idle':
+      return say('No epic is open', 'Open an epic on this canvas, or pick one of the documents above, to see its citations.')
     case 'nowhere':
       return say(
         'No project is open, so there are no documents to read',
