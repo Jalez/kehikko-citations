@@ -116,6 +116,8 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   id: ID,
   name: 'Citations',
   version: VERSION,
+  /* Where a host files this module in its list, most fitting first. */
+  tags: ['writing', 'reading'],
   summary:
     'The academic references this document cites: every entry in its .bib, which of them the prose actually names, and which citations name nothing.',
   /**
