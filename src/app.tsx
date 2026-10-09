@@ -101,9 +101,7 @@ export function App() {
     },
     { kept: KEPT },
   )
-  const { where, epic, parts, kept, remember } = host
-  /* A path with nothing but spaces in it is no path. */
-  const project = host.projectPath?.trim() ? host.projectPath : null
+  const { where, epic, parts, kept, remember, projectPath: project } = host
   /* How this page's own server last answered: `down` when nothing did, `stale` when it is another process now. */
   const server = useServerStanding()
   const [documents, setDocuments] = useState<Brief[]>([])
@@ -200,20 +198,20 @@ export function App() {
    * Every not-ready moment is the protocol's one cover, and the order is what makes it true: a
    * page that has not been greeted is `waiting`, never "no project".
    */
-  const whole: CoverState | null = coverFor({ where, projectPath: project })
+  const hosted = { where, projectPath: project }
+  const whole: CoverState | null = coverFor(hosted)
   /* Under the head, so the picker stays where it was: a document can still be picked while one is not ready. */
   const part: CoverState | null =
-    server === 'stale'
-      ? 'stale'
-      : server === 'down' || sight.at === 'unreachable'
-        ? 'down'
-        : sight.at === 'waiting'
-          ? 'loading'
-          : sight.at === 'idle'
-            ? 'no-epic'
-            : sight.at === 'nowhere'
-              ? 'no-project'
-              : null
+    coverFor({ ...hosted, server }) ??
+    (sight.at === 'unreachable'
+      ? 'down'
+      : sight.at === 'waiting'
+        ? 'loading'
+        : sight.at === 'idle'
+          ? 'no-epic'
+          : sight.at === 'nowhere'
+            ? 'no-project'
+            : null)
 
   const rows = sight.at === 'read' ? sight.citations.rows : NO_ROWS
   const brokenRows = sight.at === 'read' ? sight.citations.broken : NO_BROKEN
