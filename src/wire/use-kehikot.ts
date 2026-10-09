@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { ModuleContext } from 'kehikot-module-protocol'
+import type { EpicPart, ModuleContext } from 'kehikot-module-protocol'
 import { connect, type Connection } from 'kehikot-module-protocol/client'
 
 import { ID } from '../../manifest.ts'
@@ -10,7 +10,8 @@ import { ID } from '../../manifest.ts'
  *
  * ## What this app takes from a host, and what it does not
  *
- * It takes the open epic, the theme, and the string it asked the host to keep.
+ * It takes the open epic, its parts, the theme, and the string it asked the
+ * host to keep.
  * That is all. It asks the host for the epic list, once, and draws one extra
  * line with the answer.
  *
@@ -49,6 +50,11 @@ export interface Roadmap {
   /** The epic the canvas is on, or null when nothing has said. */
   epic: string | null
   /**
+   * Every part of the open epic, the ticked ones flagged. `[]` before a
+   * greeting and from a host older than parts: nothing ticked, the whole epic.
+   */
+  parts: readonly EpicPart[]
+  /**
    * `kehikot.context.projectPath`, or null when the host has none or nothing
    * has greeted. Documents are read from `<project>/.kehikot/paper/`, so this
    * decides WHICH documents exist rather than which one is drawn.
@@ -80,6 +86,7 @@ export interface Roadmap {
 export function useKehikot(): Roadmap {
   const host = useRef<Connection | null>(null)
   const [epic, setEpic] = useState<string | null>(null)
+  const [parts, setParts] = useState<readonly EpicPart[]>([])
   const [project, setProject] = useState<string | null>(null)
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
   const [kept, setKept] = useState<string | null | undefined>(undefined)
@@ -89,6 +96,7 @@ export function useKehikot(): Roadmap {
   useEffect(() => {
     const take = (context: ModuleContext) => {
       setEpic(context.epic)
+      setParts(context.parts ?? [])
       setTheme(context.theme)
       setProject(typeof context.projectPath === 'string' && context.projectPath.trim() ? context.projectPath : null)
     }
@@ -175,5 +183,5 @@ export function useKehikot(): Roadmap {
     void host.current?.request('state.set', { state }).catch(() => {})
   }, [])
 
-  return { epic, project, theme, kept, framed, epics, keep }
+  return { epic, parts, project, theme, kept, framed, epics, keep }
 }
