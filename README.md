@@ -136,5 +136,5 @@ Two tools, both read-only.
     vite.config.ts   the one server, and the `server.cors` line that is absent
 
 There is no `index.html` and no `build` script: the page is generated per
-request by the middleware in `vite.config.ts`, so `vite build` would have no
+request by the protocol’s `doors()` in `vite.config.ts`, so `vite build` would have no
 entry to start from and could only ever fail.

@@ -1,33 +1,51 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { FOCUS_WHERE } from 'kehikot-module-protocol'
-import { useFocus } from 'kehikot-module-protocol/client/react'
+import { ask } from 'kehikot-module-protocol/client'
+import {
+  Cover,
+  coverFor,
+  useFocus,
+  useHost,
+  useServerStanding,
+  type CoverState,
+  type KeptCodec,
+} from 'kehikot-module-protocol/client/react'
 
+import { ID } from '../manifest.ts'
 import type { Brief, BrokenRow, CitationRow, Citations } from '../store.ts'
 import { anchorOf, focusNote } from './live/focus.ts'
-import { reading, writing } from './live/keep.ts'
+import { reading, writing, type Kept } from './live/keep.ts'
 import { DEFAULT_ORDER, order, type Ordering } from './live/order.ts'
 import { EVERYTHING, narrowing, sift, type Sifting } from './live/sift.ts'
 import { BrokenList, Row } from './view/citation-row.tsx'
 import { Toolbar } from './view/toolbar.tsx'
-import { useKehikot } from './wire/use-kehikot.ts'
 import { cn } from '@/lib/utils.ts'
 
 /**
  * The whole page.
  *
- * ## Every state is a sentence, and there are six of them
+ * ## Every state is a sentence
  *
- * `waiting`, `nowhere`, `no such document`, `no bibliography`, `empty
- * bibliography`, and the list. They are enumerated rather than folded into "the
- * list is empty", because the folded version is the failure this workspace has
- * spent the most time on: an app that says "no entries" and quietly means "I
- * had no project to look in" has told somebody the opposite of the truth.
+ * The not-ready ones are the protocol's one cover — waiting for the greeting, nothing framing the
+ * page, no project, no epic, loading, this app's own server not answering, a page older than its
+ * server — and the rest are this app's own: `no such document`, `no bibliography`, `empty
+ * bibliography`, and the list. They are enumerated rather than folded into "the list is empty",
+ * because the folded version is the failure this workspace has spent the most time on: an app that
+ * says "no entries" and quietly means "I had no project to look in" has told somebody the opposite
+ * of the truth.
  *
  * In particular `no bibliography` and `empty bibliography` stay apart. The
  * first is a document with no `\addbibresource` and no `\bibliography` — every
  * roadmap paper here is one, and it is not a fault. The second is a document
  * that names a `.bib` holding nothing, which is a file somebody should look at.
+ *
+ * ## What it takes from a host
+ *
+ * The open project and epic, the epic's parts, the theme, and the filter it asked the host to
+ * keep — all through the protocol's `useHost`. It asks the host for the epic list once, on the
+ * greeting, and draws one extra line with the answer. Documents are read from the project the host
+ * names, so with no host there is nothing to read and the page says that nothing is framing it.
  *
  * ## What is fetched, and when
  *
@@ -41,34 +59,72 @@ import { cn } from '@/lib/utils.ts'
  * symptom of a working app.
  */
 
+/** The second line under "No project is open": what this app would read if one were. */
+const NO_PROJECT = 'Citations reads the .bib and the .tex beside it out of the open project, at .kehikot/paper/<epic>/.'
+
 const NO_ROWS: CitationRow[] = []
 const NO_BROKEN: BrokenRow[] = []
+
+/** The filter and the order, as the string the host keeps. `live/keep.ts` owns the format. */
+export const KEPT: KeptCodec<Kept> = { read: reading, write: writing }
 
 type Sight =
   | { at: 'waiting' }
   | { at: 'idle' }
   | { at: 'nowhere'; why: string }
   | { at: 'missing'; epic: string }
-  | { at: 'unreachable'; why: string }
+  | { at: 'unreachable' }
+  | { at: 'refused'; why: string }
   | { at: 'read'; citations: Citations }
 
 export function App() {
-  const { epic, parts, project, kept, framed, epics, keep } = useKehikot()
+  const [epics, setEpics] = useState<string[] | null>(null)
+  const host = useHost<Kept>(
+    ID,
+    {
+      /*
+       * The epic list is enrichment, asked for on the greeting. Refused, unanswered, or asked of
+       * a host that has never heard of the method, the page is unchanged but for one muted line.
+       */
+      onHello: () => {
+        void host
+          .request('epics.list')
+          .then((answer) => {
+            const list = (answer as { epics?: { slug?: unknown }[] } | null)?.epics
+            if (!Array.isArray(list)) return
+            setEpics(list.map((e) => String(e?.slug ?? '')).filter(Boolean))
+          })
+          .catch(() => {
+            /* A refusal is an ordinary answer here. */
+          })
+      },
+    },
+    { kept: KEPT },
+  )
+  const { where, epic, parts, kept, remember } = host
+  /* A path with nothing but spaces in it is no path. */
+  const project = host.projectPath?.trim() ? host.projectPath : null
+  /* How this page's own server last answered: `down` when nothing did, `stale` when it is another process now. */
+  const server = useServerStanding()
   const [documents, setDocuments] = useState<Brief[]>([])
   const [picked, setPicked] = useState<string | null>(null)
   const [sight, setSight] = useState<Sight>({ at: 'waiting' })
   const [sifting, setSifting] = useState<Sifting>(EVERYTHING)
   const [ordering, setOrdering] = useState<Ordering>(DEFAULT_ORDER)
   const [openKey, setOpenKey] = useState<string | null>(null)
+  /** Bumped by Try again: both reads are asked again. */
+  const [again, setAgain] = useState(0)
   /*
-   * Whether the kept string has been applied yet.
+   * Whether the kept filter has been applied yet.
    *
    * Without this the page writes its own defaults back to the host on the first
    * render — before the greeting has arrived with what was saved — and a
-   * setting is lost every single time the container loads. `kept` being `undefined`
-   * rather than `null` is what makes the distinction possible; see `Kehikot`.
+   * setting is lost every single time the container loads. It turns true on the
+   * greeting, kept filter or none, and never before it.
    */
   const [restored, setRestored] = useState(false)
+  /** The value this page last handed to `remember`, so its own echo is not applied as the host's. */
+  const mine = useRef<Kept | null>(null)
 
   /*
    * A pick holds only until the canvas moves: another epic, or another project.
@@ -85,77 +141,79 @@ export function App() {
   const showing = picked ?? epic
 
   useEffect(() => {
-    if (kept === undefined) return
-    const held = reading(kept)
-    if (held) {
-      setSifting(held.sifting)
-      setOrdering(held.ordering)
+    if (where !== 'hosted') return
+    if (kept && kept !== mine.current) {
+      setSifting(kept.sifting)
+      setOrdering(kept.ordering)
     }
     setRestored(true)
-  }, [kept])
+  }, [where, kept])
 
-  /* Written back only after the restore, and only when framed — an unframed
-     page has nobody to ask, and calling anyway would be a request into a window
-     that is not there. */
+  /* Written back only after the restore, which is only after a greeting — an unframed page has
+     nobody to ask. */
   useEffect(() => {
-    if (!restored || !framed) return
-    keep(writing({ sifting, ordering }))
-  }, [restored, framed, sifting, ordering, keep])
-
-  /** `&project=…`, or nothing — the server then answers that there is nowhere to look. */
-  const scoped = project === null ? '' : `project=${encodeURIComponent(project)}`
+    if (!restored) return
+    const next = { sifting, ordering }
+    mine.current = next
+    remember(next)
+  }, [restored, sifting, ordering, remember])
 
   useEffect(() => {
+    /* No project, no documents — and nothing to ask: the cover says which of the reasons it is. */
+    if (project === null) return void setDocuments([])
     let live = true
-    fetch(`./api/documents?${scoped}`)
-      .then((r) => r.json())
-      .then((body: { nowhere?: boolean; documents?: Brief[] }) => {
-        if (!live) return
-        setDocuments(Array.isArray(body.documents) ? body.documents : [])
-        if (body.nowhere === true) {
-          setSight({
-            at: 'nowhere',
-            why:
-              'This app reads a .bib and the .tex beside it out of the open project, at ' +
-              '.kehikot/paper/<epic>/ — the same place the paper module reads a paper — and no project is open ' +
-              'on this canvas.',
-          })
-        }
-      })
-      .catch((e: unknown) => {
-        if (!live) return
-        setSight({ at: 'unreachable', why: String(e) })
-      })
+    void ask<{ nowhere?: boolean; documents?: Brief[] }>('./api/documents', { query: { project } }).then((asked) => {
+      /* Not answered at all is `down`, which `useServerStanding` already knows and the cover draws. */
+      if (!live || !asked.ok) return
+      setDocuments(Array.isArray(asked.body?.documents) ? asked.body.documents : [])
+      /* A project the server will not look in: its own sentence is in the read below. */
+    })
     return () => {
       live = false
     }
-  }, [scoped])
+  }, [project, again])
 
   useEffect(() => {
     setOpenKey(null)
-    if (!showing) {
+    if (!showing || project === null) {
       /* Nothing to read: drop the last document's rows rather than leave them drawn. */
       setSight({ at: 'idle' })
       return
     }
     let live = true
     setSight({ at: 'waiting' })
-    fetch(`./api/citations?epic=${encodeURIComponent(showing)}&${scoped}`)
-      .then(async (r) => ({ status: r.status, body: (await r.json()) as { citations?: Citations; error?: string } }))
-      .then(({ status, body }) => {
-        if (!live) return
-        if (status === 200 && body.citations) setSight({ at: 'read', citations: body.citations })
-        else if (status === 404) setSight({ at: 'missing', epic: showing })
-        else setSight({ at: 'nowhere', why: body.error ?? 'there is no project open to look in' })
-      })
-      .catch((e: unknown) => {
-        if (!live) return
-        setSight({ at: 'unreachable', why: String(e) })
-      })
+    void ask<{ citations?: Citations }>('./api/citations', { query: { epic: showing, project } }).then((asked) => {
+      if (!live) return
+      if (asked.ok && asked.body?.citations) return setSight({ at: 'read', citations: asked.body.citations })
+      if (asked.ok) return setSight({ at: 'refused', why: 'This app’s own server answered without the citations.' })
+      if (asked.kind === 'down') return setSight({ at: 'unreachable' })
+      if (asked.status === 404) return setSight({ at: 'missing', epic: showing })
+      if ((asked.body as { nowhere?: unknown } | null)?.nowhere === true) return setSight({ at: 'nowhere', why: asked.error })
+      setSight({ at: 'refused', why: asked.error })
+    })
     return () => {
       live = false
     }
-  }, [showing, scoped])
+  }, [showing, project, again])
+
+  /*
+   * Every not-ready moment is the protocol's one cover, and the order is what makes it true: a
+   * page that has not been greeted is `waiting`, never "no project".
+   */
+  const whole: CoverState | null = coverFor({ where, projectPath: project })
+  /* Under the head, so the picker stays where it was: a document can still be picked while one is not ready. */
+  const part: CoverState | null =
+    server === 'stale'
+      ? 'stale'
+      : server === 'down' || sight.at === 'unreachable'
+        ? 'down'
+        : sight.at === 'waiting'
+          ? 'loading'
+          : sight.at === 'idle'
+            ? 'no-epic'
+            : sight.at === 'nowhere'
+              ? 'no-project'
+              : null
 
   const rows = sight.at === 'read' ? sight.citations.rows : NO_ROWS
   const brokenRows = sight.at === 'read' ? sight.citations.broken : NO_BROKEN
@@ -177,6 +235,14 @@ export function App() {
   )
   const note = focusNote(inParts, broken, brokenRows.length > 0)
   const shown = useMemo(() => order(sift(inParts.shown, sifting), ordering), [inParts, sifting, ordering])
+
+  if (whole) {
+    return (
+      <div className="flex h-full min-w-0 flex-col bg-background text-foreground">
+        <Cover state={whole} name="Citations" detail={whole === 'no-project' ? NO_PROJECT : null} />
+      </div>
+    )
+  }
 
   return (
     /*
@@ -208,7 +274,21 @@ export function App() {
           {note}
         </p>
       )}
-      <div className="min-w-0 flex-1 overflow-y-auto">
+      <div className={cn('min-w-0 flex-1 overflow-y-auto', part && 'flex flex-col')}>
+        {part ? (
+          <Cover
+            state={part}
+            name="Citations"
+            onRetry={() => setAgain((n) => n + 1)}
+            detail={
+              part === 'no-epic' && documents.length > 1
+                ? 'Or pick one of the documents above to see its citations.'
+                : part === 'no-project' && sight.at === 'nowhere'
+                  ? sight.why
+                  : null
+            }
+          />
+        ) : (
         <Body
           sight={sight}
           shown={shown}
@@ -219,6 +299,7 @@ export function App() {
           openKey={openKey}
           onToggle={(key) => setOpenKey(openKey === key ? null : key)}
         />
+        )}
       </div>
     </div>
   )
@@ -317,27 +398,15 @@ function Body({
     </div>
   )
 
-  switch (sight.at) {
-    case 'waiting':
-      return say('Reading…')
-    case 'idle':
-      return say('No epic is open', 'Open an epic on this canvas, or pick one of the documents above, to see its citations.')
-    case 'nowhere':
-      return say(
-        'No project is open, so there are no documents to read',
-        sight.why,
-        'Open a project on this canvas and this page fills in from its .kehikot/paper/ folder.',
-      )
-    case 'unreachable':
-      return say('This page could not reach its own server', sight.why)
-    case 'missing':
-      return say(
-        `Nothing in this project holds a document for “${sight.epic}”`,
-        `That is not a failure to read one — there is no .kehikot/paper/${sight.epic}/ in the project, or it has no main.tex in it.`,
-      )
-    case 'read':
-      break
+  /* The not-ready sights are the shared cover, drawn by `App`; what is left is this app's own. */
+  if (sight.at === 'missing') {
+    return say(
+      `Nothing in this project holds a document for “${sight.epic}”`,
+      `That is not a failure to read one — there is no .kehikot/paper/${sight.epic}/ in the project, or it has no main.tex in it.`,
+    )
   }
+  if (sight.at === 'refused') return say('This document could not be read', sight.why)
+  if (sight.at !== 'read') return null
 
   const { citations } = sight
   if (citations.bib === null) {
