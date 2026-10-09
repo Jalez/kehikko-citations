@@ -1,3 +1,5 @@
+import { establishBuild, type Reply } from 'kehikot-module-protocol/serve'
+
 import { ID, MANIFEST, VERSION } from './manifest.ts'
 import { isEpic, list, projectOf, readCitations } from './store.ts'
 
@@ -48,12 +50,12 @@ function str(value: unknown, max: number): string {
   return value.trim().slice(0, max)
 }
 
-/** A status and a document. Nothing here writes bytes; the adapter does that. */
-export interface Reply {
-  status: number
-  /** `null` means "answer with no body", which is what a notification gets. */
-  body: unknown
-}
+/**
+ * What this process is built from, said in the manifest, the health check, the page and a header
+ * on every answer — which is how the page's own `ask()` notices that the server answering it is no
+ * longer the one that served it. There is no write ticket beside it: this app takes no writes.
+ */
+export const BUILD = establishBuild({ version: VERSION, dir: import.meta.dirname })
 
 const ok = (body: unknown): Reply => ({ status: 200, body })
 const bad = (why: string, status = 400): Reply => ({ status, body: { ok: false, error: why } })

@@ -1,239 +1,63 @@
-import type { IncomingMessage } from 'node:http'
 import { resolve } from 'node:path'
 
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { LEGACY_WELL_KNOWN, WELL_KNOWN, legacyManifest } from 'kehikot-module-protocol'
-import { frameAncestors, serves } from 'kehikot-module-protocol/serve'
+import { doors, serves } from 'kehikot-module-protocol/serve'
 import { defineConfig, type Plugin } from 'vite'
 
-import { MANIFEST, answer, type Reply } from './doors.ts'
+import { BUILD, MANIFEST, answer } from './doors.ts'
 import { ID, PREFERRED_PORT } from './manifest.ts'
-import { page } from './page/document.ts'
 
 /**
- * Every door this app answers on, served by the one process that serves the
- * page.
- *
- * ## Why they cannot be a second server
- *
- * A module is ONE ORIGIN or it is nothing: the protocol refuses a manifest
- * whose `entry` points anywhere but the origin that served the manifest. That
- * argument is usually made about the manifest and the health check; here it
- * reaches further, because this module serves its own material. The page
- * fetches `/api/citations` as a relative path, which is how the app works with
- * nothing else running at all. On a second port those would be cross-origin
- * from the page, and two ports is exactly where a permissive CORS policy comes
- * from. Removing the second port removes the reason for the header.
- *
- * ## Why the page is generated rather than a file
- *
- * `entry` is `/app`, and under Vite dev an extensionless path is not free: a
- * request for `/app` sitting next to an `app.tsx` resolves to that module and
- * answers `200 text/javascript` with compiled source. A browser loads such a
- * document happily and runs nothing in it — the frame's `load` fires, the host
- * greets it, and nothing answers, which reads in a host's log as "loaded its
- * page and did not answer the greeting". Claiming `/app` in middleware, before
- * Vite's resolver sees it, is what makes that impossible.
+ * Say at startup where documents come from: there is no directory to point this app at any more,
+ * and the variables that used to do it are named for whoever still has one in a shell profile.
  */
-function doors(): Plugin {
+function says(): Plugin {
   return {
-    name: 'citations-doors',
+    name: 'citations-says',
+    apply: 'serve',
     configureServer(server) {
-      /*
-       * Say at startup where documents come from.
-       *
-       * This used to print the configured directories and a count per
-       * document, because the one mistake this app could make was being
-       * pointed at the wrong directory. There is nothing to point any more: a
-       * document is found in the project the host says is open, and this
-       * process does not know which project that is until a request names one.
-       * So the line says the RULE — and names the variables that stopped doing
-       * anything, for whoever set one in a shell profile months ago. The paper
-       * module prints the same sentence for the same reason.
-       */
       server.config.logger.info(
         'citations: documents come from the open project — <project>/.kehikot/paper/<epic>/main.tex, the same '
           + 'place the paper module reads them. KEHIKKO_PAPERS_DIR, KEHIKKO_ROADMAP_DIR and KEHIKKO_THESIS_DIR are '
           + 'no longer read and are ignored if still set.',
       )
-
-      server.middlewares.use((request, response, next) => {
-        const url = new URL(request.url ?? '/', 'http://127.0.0.1')
-        const path = url.pathname
-        const method = (request.method ?? 'GET').toUpperCase()
-
-        const send = (reply: Reply) => {
-          if (reply.body === null) {
-            response.statusCode = reply.status
-            response.end()
-            return
-          }
-          response.statusCode = reply.status
-          response.setHeader('content-type', 'application/json; charset=utf-8')
-          response.end(JSON.stringify(reply.body, null, 2))
-        }
-
-        /* Spelled by the protocol package so that this app and every host
-           cannot disagree about it by a character. */
-        if (path === WELL_KNOWN) return send({ status: 200, body: MANIFEST })
-
-        /* The same manifest in the spelling a host from before the rename asks
-           for, so that host still finds this module. It greets in that
-           dialect and the protocol's client answers in it. */
-        if (path === LEGACY_WELL_KNOWN) return send({ status: 200, body: legacyManifest(MANIFEST) })
-
-        if (path === '/app' || path === '/app/' || path === '/') {
-          void server
-            .transformIndexHtml(request.url ?? '/app', page(), request.originalUrl)
-            .then((html) => {
-              response.statusCode = 200
-              response.setHeader('content-type', 'text/html; charset=utf-8')
-              /*
-               * Framed by a host and by nothing else — and by nothing at all is
-               * fine too, which is what opening this page directly is.
-               *
-               * `frame-ancestors` is the module's own half of the arrangement:
-               * a host says which origins IT will frame, and this says who may
-               * frame this. Whoever is running it decides, through
-               * `KEHIKOT_ORIGIN` (or the older `ROADMAP_ORIGIN`), via `frameAncestors()`; the default is the address the host in this
-               * workspace actually serves on.
-               */
-              response.setHeader(
-                'content-security-policy',
-                frameAncestors(),
-              )
-              response.end(html)
-            })
-            .catch(next)
-          return
-        }
-
-        const ours = path === '/healthz' || path === '/mcp' || path.startsWith('/api/')
-        if (!ours) return next()
-
-        /* Only the paths above read a body, and only those wait for one. Vite's
-           own middleware stack has to keep seeing an unconsumed request for
-           everything else. */
-        void body(request)
-          .then((parsed) => {
-            const reply = answer(method, path, url.searchParams, parsed)
-            if (!reply) return next()
-            send(reply)
-          })
-          .catch(next)
-      })
     },
   }
 }
 
 /**
- * The request body, as JSON, or null.
+ * The dev server.
  *
- * Bounded at a megabyte, because the caller is whatever on this machine found
- * the port — loopback is a fence around the machine and not around the programs
- * on it — and a handler that reads until the socket closes is a handler that
- * can be asked to read forever. Unparseable is null rather than a throw, and
- * `doors.ts` says "that was not a request" about it.
- */
-const MAX_BODY_BYTES = 1_000_000
-
-async function body(request: IncomingMessage): Promise<Record<string, unknown> | null> {
-  if ((request.method ?? 'GET').toUpperCase() !== 'POST') return null
-  const chunks: Buffer[] = []
-  let size = 0
-  for await (const chunk of request) {
-    const piece = chunk as Buffer
-    size += piece.length
-    if (size > MAX_BODY_BYTES) return null
-    chunks.push(piece)
-  }
-  if (!chunks.length) return null
-  try {
-    const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null
-  } catch {
-    return null
-  }
-}
-
-/**
- * The dev server, and the one line that is absent from it.
- *
- * ## No `server.cors` — this module declares storage instead
- *
- * Modules that hold nothing set `cors: true` and have to: a host frames a
- * module WITHOUT `allow-same-origin` unless its manifest declares storage,
- * which puts the page on an opaque origin — and `<script type="module">` is
- * ALWAYS fetched in CORS mode, so with no permissive header not one script in
- * the page runs. The document loads, `load` fires, the host greets it, and
- * nothing answers. `curl` cannot see it, being unsubject to CORS; only the
- * browser console can.
- *
- * This module cannot go that way, because it serves its own `/api`. A
- * permissive `Access-Control-Allow-Origin` means any page in any tab can read
- * this origin. So the manifest declares `storage: true`, this line is absent,
- * and the page's own `/api` calls are ordinary same-origin requests with no
- * CORS involved at all. The check is one command:
- *
- *     curl -sI -H 'Origin: https://evil.example' http://127.0.0.1:7930/app | grep -i access-control
- *
- * and it must print nothing.
- *
- * ## No alias for `kehikot-module-protocol`
- *
- * The package's `exports` are correct and reaching past them is what made a
- * whole class of bug possible. A module that resolved its contract differently
- * from the host it talks to is a module testing something nobody ships.
- *
- * The `@` alias below is a different thing: it points at this repository's own
- * `src`, and exists because shadcn's components are generated with
- * `@/lib/utils` in them and a module rewritten by hand on every `shadcn add` is
- * a module that drifts from upstream.
- *
- * ## Tailwind is configured in CSS, and there is no `tailwind.config.js`
- *
- * v4 reads `src/index.css`: the theme, the dark variant and the container
- * queries all live there. A config file would be a second place the theme lives
- * and the failure mode of two is that one of them is the one somebody edits.
- *
- * ## There is no `build` script in `package.json` and no `index.html`
- *
- * Both would be lies. The page is generated per request by the middleware
- * above, so `vite build` has no entry to start from; six modules in this
- * workspace carry a `"build": "vite build"` that cannot succeed. `build.outDir`
- * stays configured because it costs nothing and describes where a build WOULD
- * go if this ever grew one honestly.
- *
- * ## There is no `server.port` either, because `serves()` decides it
- *
- * 7930 was written on the `bunx vite` line in `run.sh` and again in
- * `register.ts`, and true in neither the moment something else held the port:
- * `--strictPort` meant this app printed `Error: Port 7930 is already in use` and
- * exited 1, so a program with no interest in bibliographies could stop the
- * bibliography from opening. It is `PREFERRED_PORT` in `manifest.ts` now, said
- * once beside the id and read from there by this file and `register.ts` both.
- *
- * `serves()` is FIRST in the plugin list because it has to claim a port before
- * anything else in this config asks for one. A free 7930 is taken in silence, so
- * somebody who types the address they remember still gets their module; this
- * module already answering there ends the start cleanly rather than making a
- * second copy; anything else is a loud move to the next free port with the
- * registration rewritten to the port the server ACTUALLY bound, read off
- * `httpServer.address()` after `listening` rather than off what was asked for.
+ * - `serves()` decides the port from `PREFERRED_PORT` (or $PORT from a host) and keeps the
+ *   registration true, so there is no `server.port` here. It is first because it has to claim a
+ *   port before anything else in this config asks for one.
+ * - `doors()` is every door this app answers on, served by the one process that serves the page:
+ *   the manifest, `/app` with the build printed into it, and `/healthz`, `/mcp` and `/api/*`
+ *   through `answer` in doors.ts. A module is ONE ORIGIN — the page fetches `/api/citations` as a
+ *   relative path — and `/app` has to be claimed before Vite's resolver sees it, because this
+ *   repository has a `src/app.tsx`. No ticket in the page: this app takes no writes. See the
+ *   protocol's docs/module-plumbing.md.
+ * - No `server.cors`: this module serves its own `/api`, and a permissive header would let any
+ *   page in any tab read it. The manifest declares `storage: true` instead, so the page has a real
+ *   origin and needs none. `curl -sI -H 'Origin: https://evil.example' http://127.0.0.1:7930/app
+ *   | grep -i access-control` must print nothing.
+ * - No alias for `kehikot-module-protocol`: it resolves through its exports, as the host's does.
+ *   The `@` alias points at `src`, which is what shadcn's generated components import through.
+ * - Tailwind is configured in `src/index.css`; there is no `tailwind.config.js`.
+ * - No `index.html` and no `build` script: the page is generated per request, so `vite build` has
+ *   no entry to start from. `build.outDir` describes where a build would go if this grew one.
+ * - `base: './'`, because a host frames this page at whatever address it wrote down.
  */
 export default defineConfig({
-  /**
-   * `base: './'`, because this page is served at `/app` here and framed by a
-   * host at whatever address that host wrote down. Absolute asset paths are
-   * correct in the first case and a guess in the second; relative ones are a
-   * fact in both, because the browser resolves them against the document it
-   * just fetched.
-   */
   base: './',
-  plugins: [serves({ id: ID, prefer: PREFERRED_PORT }), doors(), react(), tailwindcss()],
+  plugins: [
+    serves({ id: ID, prefer: PREFERRED_PORT }),
+    doors({ manifest: MANIFEST, answer, build: BUILD, page: { title: 'Citations' } }),
+    says(),
+    react(),
+    tailwindcss(),
+  ],
   resolve: { alias: { '@': resolve(import.meta.dirname, 'src') } },
   build: { outDir: 'dist', emptyOutDir: true },
 })
