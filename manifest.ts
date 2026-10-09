@@ -144,6 +144,14 @@ export const MANIFEST: Manifest = manifestSchema.parse({
       'A document’s bibliography: every entry, how often the prose cites it, and every citation that names nothing.',
   },
   extensions: { emits: [], consumes: [] },
+  /**
+   * `reacts: ['parts']` — the list follows the parts ticked in the host's bar.
+   *
+   * An entry is anchored by every file of the paper that cites it, and is in
+   * front when any one of them is a ticked part's; an entry cited nowhere has
+   * no anchor and is counted outside. See `src/live/focus.ts`.
+   */
+  reacts: ['parts'],
   declares: {
     protocol: `>=${PROTOCOL} <${PROTOCOL + 1}`,
     uses: ['epics:read', 'state:keep'],

@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import type { Brief, Citations } from '../store.ts'
+import { FOCUS_WHERE } from 'kehikot-module-protocol'
+import { useFocus } from 'kehikot-module-protocol/client/react'
+
+import type { Brief, BrokenRow, CitationRow, Citations } from '../store.ts'
+import { anchorOf, focusNote } from './live/focus.ts'
 import { reading, writing } from './live/keep.ts'
 import { DEFAULT_ORDER, order, type Ordering } from './live/order.ts'
 import { EVERYTHING, narrowing, sift, type Sifting } from './live/sift.ts'
@@ -37,6 +41,9 @@ import { cn } from '@/lib/utils.ts'
  * symptom of a working app.
  */
 
+const NO_ROWS: CitationRow[] = []
+const NO_BROKEN: BrokenRow[] = []
+
 type Sight =
   | { at: 'waiting' }
   | { at: 'idle' }
@@ -46,7 +53,7 @@ type Sight =
   | { at: 'read'; citations: Citations }
 
 export function App() {
-  const { epic, project, kept, framed, epics, keep } = useKehikot()
+  const { epic, parts, project, kept, framed, epics, keep } = useKehikot()
   const [documents, setDocuments] = useState<Brief[]>([])
   const [picked, setPicked] = useState<string | null>(null)
   const [sight, setSight] = useState<Sight>({ at: 'waiting' })
@@ -150,8 +157,26 @@ export function App() {
     }
   }, [showing, scoped])
 
-  const rows = sight.at === 'read' ? sight.citations.rows : []
-  const shown = useMemo(() => order(sift(rows, sifting), ordering), [rows, sifting, ordering])
+  const rows = sight.at === 'read' ? sight.citations.rows : NO_ROWS
+  const brokenRows = sight.at === 'read' ? sight.citations.broken : NO_BROKEN
+  /*
+   * The parts ticked in the host's bar, which belong to the OPEN epic: a
+   * document of another epic picked by hand is shown whole. Narrowed before
+   * the filter, so the filter's own count and empty state are about what the
+   * ticks left. The open entry is held though its files are outside — a tick
+   * takes nothing out of somebody's hands. See `live/focus.ts`.
+   */
+  const focus = useFocus({ parts: showing === epic ? parts : [], epic })
+  const inParts = useMemo(
+    () => focus.narrow(rows, anchorOf, { noun: ['entry', 'entries'], keep: (row) => row.key === openKey }),
+    [focus, rows, openKey],
+  )
+  const broken = useMemo(
+    () => focus.narrow(brokenRows, anchorOf, { noun: ['broken citation', 'broken citations'] }),
+    [focus, brokenRows],
+  )
+  const note = focusNote(inParts, broken, brokenRows.length > 0)
+  const shown = useMemo(() => order(sift(inParts.shown, sifting), ordering), [inParts, sifting, ordering])
 
   return (
     /*
@@ -174,10 +199,21 @@ export function App() {
           total={rows.length}
         />
       )}
+      {note && sight.at === 'read' && sight.citations.rows.length > 0 && (
+        <p
+          data-testid="focus"
+          title={FOCUS_WHERE}
+          className="border-b border-border px-2 py-1 text-[0.68rem] leading-snug break-words text-muted-foreground"
+        >
+          {note}
+        </p>
+      )}
       <div className="min-w-0 flex-1 overflow-y-auto">
         <Body
           sight={sight}
           shown={shown}
+          inParts={inParts.shown.length}
+          broken={broken.shown}
           sifting={sifting}
           onClear={() => setSifting(EVERYTHING)}
           openKey={openKey}
@@ -252,6 +288,8 @@ function Head({
 function Body({
   sight,
   shown,
+  inParts,
+  broken,
   sifting,
   onClear,
   openKey,
@@ -259,6 +297,10 @@ function Body({
 }: {
   sight: Sight
   shown: ReturnType<typeof order>
+  /** How many entries the ticked parts left, before the filter. Every entry when nothing is ticked. */
+  inParts: number
+  /** The citations naming nothing, narrowed likewise. */
+  broken: BrokenRow[]
   sifting: Sifting
   onClear: () => void
   openKey: string | null
@@ -325,7 +367,7 @@ function Body({
   return (
     <div className="px-1 py-1">
       <Problems citations={citations} />
-      <BrokenList broken={citations.broken} />
+      <BrokenList broken={broken} />
       {citations.citesEverything && (
         <p className="mb-2 rounded-md border border-border px-2 py-1.5 text-[0.68rem] leading-snug text-muted-foreground">
           {/* Reported, not obeyed. The essay is on `crossReference` in
@@ -335,11 +377,18 @@ function Body({
           whether or not the prose names it. The counts below are still what the prose says.
         </p>
       )}
-      {shown.length === 0 ? (
+      {inParts === 0 ? (
+        /* The ticks left nothing, which is not the filter's doing and must not
+           be said in the filter's words. The count is in the line above. */
+        <div data-testid="unfocused" className="px-1 py-4 text-[0.75rem] leading-relaxed">
+          <p className="font-medium">No entry here is cited in the picked parts</p>
+          <p className="mt-1 text-muted-foreground">{FOCUS_WHERE}</p>
+        </div>
+      ) : shown.length === 0 ? (
         <div className="px-1 py-4 text-[0.75rem] leading-relaxed">
           <p className="font-medium">The filter is hiding every entry</p>
           <p className="mt-1 text-muted-foreground">
-            {citations.rows.length} entries are here and none of them match{' '}
+            {inParts} entries are here and none of them match{' '}
             {sifting.query.trim() ? `“${sifting.query.trim()}”` : 'that filter'}.
           </p>
           {narrowing(sifting) && (
