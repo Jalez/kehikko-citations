@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { FOCUS_WHERE } from 'kehikot-module-protocol'
 import { ask } from 'kehikot-module-protocol/client'
 import {
   Cover,
@@ -14,7 +13,7 @@ import {
 
 import { ID } from '../manifest.ts'
 import type { Brief, BrokenRow, CitationRow, Citations } from '../store.ts'
-import { anchorOf, focusNote } from './live/focus.ts'
+import { anchorOf, saidOfNone } from './live/focus.ts'
 import { reading, writing, type Kept } from './live/keep.ts'
 import { DEFAULT_ORDER, order, type Ordering } from './live/order.ts'
 import { EVERYTHING, narrowing, sift, type Sifting } from './live/sift.ts'
@@ -220,18 +219,15 @@ export function App() {
    * document of another epic picked by hand is shown whole. Narrowed before
    * the filter, so the filter's own count and empty state are about what the
    * ticks left. The open entry is held though its files are outside — a tick
-   * takes nothing out of somebody's hands. See `live/focus.ts`.
+   * takes nothing out of somebody's hands. No line says any of this: see
+   * `live/focus.ts`.
    */
   const focus = useFocus({ parts: showing === epic ? parts : [], epic })
   const inParts = useMemo(
-    () => focus.narrow(rows, anchorOf, { noun: ['entry', 'entries'], keep: (row) => row.key === openKey }),
+    () => focus.narrow(rows, anchorOf, { keep: (row) => row.key === openKey }),
     [focus, rows, openKey],
   )
-  const broken = useMemo(
-    () => focus.narrow(brokenRows, anchorOf, { noun: ['broken citation', 'broken citations'] }),
-    [focus, brokenRows],
-  )
-  const note = focusNote(inParts, broken, brokenRows.length > 0)
+  const broken = useMemo(() => focus.narrow(brokenRows, anchorOf), [focus, brokenRows])
   const shown = useMemo(() => order(sift(inParts.shown, sifting), ordering), [inParts, sifting, ordering])
 
   if (whole) {
@@ -263,15 +259,6 @@ export function App() {
           total={rows.length}
         />
       )}
-      {note && sight.at === 'read' && sight.citations.rows.length > 0 && (
-        <p
-          data-testid="focus"
-          title={FOCUS_WHERE}
-          className="border-b border-border px-2 py-1 text-[0.68rem] leading-snug break-words text-muted-foreground"
-        >
-          {note}
-        </p>
-      )}
       <div className={cn('min-w-0 flex-1 overflow-y-auto', part && 'flex flex-col')}>
         {part ? (
           <Cover
@@ -291,6 +278,7 @@ export function App() {
           sight={sight}
           shown={shown}
           inParts={inParts.shown.length}
+          none={saidOfNone(focus.parts)}
           broken={broken.shown}
           sifting={sifting}
           onClear={() => setSifting(EVERYTHING)}
@@ -368,6 +356,7 @@ function Body({
   sight,
   shown,
   inParts,
+  none,
   broken,
   sifting,
   onClear,
@@ -378,6 +367,8 @@ function Body({
   shown: ReturnType<typeof order>
   /** How many entries the ticked parts left, before the filter. Every entry when nothing is ticked. */
   inParts: number
+  /** The one sentence for a list the ticked parts emptied. See `live/focus.ts`. */
+  none: string
   /** The citations naming nothing, narrowed likewise. */
   broken: BrokenRow[]
   sifting: Sifting
@@ -446,11 +437,11 @@ function Body({
       )}
       {inParts === 0 ? (
         /* The ticks left nothing, which is not the filter's doing and must not
-           be said in the filter's words. The count is in the line above. */
-        <div data-testid="unfocused" className="px-1 py-4 text-[0.75rem] leading-relaxed">
-          <p className="font-medium">No entry here is cited in the picked parts</p>
-          <p className="mt-1 text-muted-foreground">{FOCUS_WHERE}</p>
-        </div>
+           be said in the filter's words. One sentence, and the only thing this
+           page says about the ticks. */
+        <p data-testid="unfocused" className="px-1 py-4 text-[0.75rem] leading-relaxed text-muted-foreground">
+          {none}
+        </p>
       ) : shown.length === 0 ? (
         <div className="px-1 py-4 text-[0.75rem] leading-relaxed">
           <p className="font-medium">The filter is hiding every entry</p>

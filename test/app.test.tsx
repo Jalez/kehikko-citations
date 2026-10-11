@@ -143,6 +143,8 @@ function serveThree() {
   }) as unknown as typeof fetch
 }
 
+/** Anything on the page that talks about the ticked parts while there is an entry to show: there is to be none. */
+const notice = () => screen.queryByTestId('focus') !== null || /outside the|picked part|host’s bar|stays until you close/.test(document.body.textContent ?? '')
 const PARTS = (...picked: string[]) =>
   ['intro', 'methods'].map((id) => ({ id, heading: id, refs: [], picked: picked.includes(id), files: [`chapters/${id}.tex`] }))
 
@@ -157,7 +159,7 @@ test('nothing ticked: every entry, every broken citation, and no line about part
   expect(screen.queryByTestId('focus')).toBeNull()
 })
 
-test('a ticked part leaves the entries cited in its files, and the rest are counted', async () => {
+test('a ticked part leaves the entries cited in its files, and no line says what was put aside', async () => {
   serveThree()
   await open({ epic: 'a', parts: PARTS() })
   await screen.findByText('Title of intro')
@@ -169,9 +171,7 @@ test('a ticked part leaves the entries cited in its files, and the rest are coun
   expect(screen.queryByText('Title of nowhere')).toBeNull()
   expect(screen.queryByText('typo')).toBeNull()
   expect(screen.getByText('1 of 3')).toBeTruthy()
-  expect(screen.getByTestId('focus').textContent).toBe(
-    '2 entries outside the picked part (intro). 1 broken citation outside the picked part (intro).',
-  )
+  expect(notice()).toBe(false)
 })
 
 test('a tick does not close the entry somebody has open', async () => {
@@ -182,24 +182,28 @@ test('a tick does not close the entry somebody has open', async () => {
   await move({ epic: 'a', parts: PARTS('intro') })
 
   expect(screen.getByText('Title of methods')).toBeTruthy()
-  expect(screen.getByTestId('focus').textContent).toContain('The one you have open is among them')
+  /* It stays as it was, and nothing announces it. */
+  expect(notice()).toBe(false)
 
   fireEvent.click(screen.getByText('Title of methods'))
   expect(screen.queryByText('Title of methods')).toBeNull()
 })
 
-test('parts that own none of the citing files leave a sentence, not the filter’s', async () => {
+test('parts that own none of the citing files leave one sentence in the empty place, not the filter’s and no second line', async () => {
   serveThree()
   await open({ epic: 'a', parts: [{ id: 'results', heading: 'Results', refs: [], picked: true, files: ['chapters/results.tex'] }] })
-  await screen.findByTestId('unfocused')
-  expect(screen.getByTestId('focus').textContent).toStartWith('3 entries outside the picked part (Results).')
+  expect((await screen.findByTestId('unfocused')).textContent).toBe('No entry here is cited in the picked part.')
+  expect(screen.queryByTestId('focus')).toBeNull()
+  expect(document.body.textContent).not.toContain('host’s bar')
+  expect(document.body.textContent).not.toContain('outside the')
   expect(screen.queryByText('The filter is hiding every entry')).toBeNull()
 })
 
 test('a document of another epic, picked by hand, is not narrowed by the open epic’s parts', async () => {
   serveThree()
   await open({ epic: 'a', parts: PARTS('intro') })
-  await screen.findByTestId('focus')
+  await screen.findByText('Title of intro')
+  expect(screen.queryByText('Title of nowhere')).toBeNull()
 
   fireEvent.click(screen.getByRole('button', { name: /^b/ }))
 

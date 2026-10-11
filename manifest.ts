@@ -149,7 +149,7 @@ export const MANIFEST: Manifest = manifestSchema.parse({
    *
    * An entry is anchored by every file of the paper that cites it, and is in
    * front when any one of them is a ticked part's; an entry cited nowhere has
-   * no anchor and is counted outside. See `src/live/focus.ts`.
+   * no anchor and is outside every focus. See `src/live/focus.ts`.
    */
   reacts: ['parts'],
   declares: {
