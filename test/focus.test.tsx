@@ -5,7 +5,7 @@ import { partsDeclaration, type EpicPart } from 'kehikot-module-protocol'
 import { useFocus } from 'kehikot-module-protocol/client/react'
 
 import { MANIFEST } from '../manifest.ts'
-import { anchorOf, focusNote } from '../src/live/focus.ts'
+import { anchorOf, saidOfNone } from '../src/live/focus.ts'
 
 /**
  * The parts focus: which entries a ticked part leaves, how many it does not,
@@ -36,8 +36,8 @@ const parts = (...picked: string[]): EpicPart[] => [
 function narrowed(picked: string[], open: string | null = null) {
   const { result } = renderHook(() => useFocus({ parts: parts(...picked), epic: 'thesis' }))
   return {
-    entries: result.current.narrow(ROWS, anchorOf, { noun: ['entry', 'entries'], keep: (row) => row.key === open }),
-    broken: result.current.narrow(BROKEN, anchorOf, { noun: ['broken citation', 'broken citations'] }),
+    entries: result.current.narrow(ROWS, anchorOf, { keep: (row) => row.key === open }),
+    broken: result.current.narrow(BROKEN, anchorOf),
   }
 }
 const keys = (list: readonly { key: string }[]) => list.map((one) => one.key)
@@ -47,47 +47,34 @@ describe('which entries the ticked parts leave', () => {
     const { entries, broken } = narrowed([])
     expect(entries.shown).toEqual(ROWS)
     expect(broken.shown).toEqual(BROKEN)
-    expect(entries).toMatchObject({ outside: 0, kept: 0, sentence: '' })
-    expect(focusNote(entries, broken, true)).toBe('')
+    expect(entries).toMatchObject({ outside: 0, kept: 0 })
   })
 
-  test('one part: the entries ANY citing file of which is its own; the rest are counted', () => {
+  test('one part: the entries ANY citing file of which is its own; the rest are put aside', () => {
     const { entries, broken } = narrowed(['intro'])
     expect(keys(entries.shown)).toEqual(['intro-only', 'both'])
     expect(entries.outside).toBe(3)
-    expect(entries.sentence).toBe('3 entries outside the picked part (Introduction).')
     expect(keys(broken.shown)).toEqual([])
     expect(broken.outside).toBe(2)
   })
 
-  test('main.tex and an entry cited nowhere are outside every focus, and counted', () => {
+  test('main.tex and an entry cited nowhere are outside every focus', () => {
     const { entries, broken } = narrowed(['intro', 'methods'])
     expect(keys(entries.shown)).toEqual(['intro-only', 'both', 'methods-only'])
-    expect(entries.sentence).toBe('2 entries outside the 2 picked parts (Introduction, Methods).')
     expect(keys(broken.shown)).toEqual(['typo'])
   })
 
-  test('the open entry stays in its place, and is still counted outside', () => {
+  test('the open entry stays in its place, though its files are outside', () => {
     const { entries } = narrowed(['intro'], 'main-only')
     expect(keys(entries.shown)).toEqual(['intro-only', 'both', 'main-only'])
     expect(entries).toMatchObject({ outside: 3, kept: 1 })
   })
 })
 
-describe('the line', () => {
-  test('the entries, then the broken citations when the document has any', () => {
-    const { entries, broken } = narrowed(['intro'])
-    expect(focusNote(entries, broken, false)).toBe('3 entries outside the picked part (Introduction).')
-    expect(focusNote(entries, broken, true)).toBe(
-      '3 entries outside the picked part (Introduction). 2 broken citations outside the picked part (Introduction).',
-    )
-  })
-
-  test('an entry held open is said to be', () => {
-    const { entries, broken } = narrowed(['intro'], 'main-only')
-    expect(focusNote(entries, broken, false)).toBe(
-      '3 entries outside the picked part (Introduction). The one you have open is among them, and stays until you close it.',
-    )
+describe('the one sentence there is', () => {
+  test('a list the ticks emptied says so, and that is all this module says about the ticks', () => {
+    expect(saidOfNone(parts('intro'))).toBe('No entry here is cited in the picked part.')
+    expect(saidOfNone(parts('intro', 'methods'))).toBe('No entry here is cited in the picked parts.')
   })
 })
 
