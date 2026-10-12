@@ -8,7 +8,7 @@
  * with Dialogue}` has a braced group inside a braced value; a regex ending at
  * the first `}` cuts the title to `{AutoTutor` and the page then shows half a
  * title with nothing on screen saying it is half of one. So the value scanner
- * below counts depth, the way `store.ts` in the paper module counts it for
+ * below counts depth, the way `store.ts` counts it for
  * `\title{}`, and for the same reason.
  *
  * The other half of the answer is that this file has to be a PURE function over

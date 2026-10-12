@@ -100,7 +100,7 @@ describe('the ordinary doors', () => {
     expect(body).toMatchObject({ nowhere: true, documents: [] })
     const reply = get('/api/citations', 'epic=thesis', null)
     expect(reply?.status).toBe(503)
-    expect((reply?.body as { error: string }).error).toContain('.kehikot/paper/')
+    expect((reply?.body as { error: string }).error).toContain('.kehikot/<folder>/<epic>/main.tex')
   })
 
   test('a relative project path is no project, not this program’s own folder', () => {
@@ -174,7 +174,7 @@ describe('what an agent is told', () => {
   test('a tool with no project says where documents are expected, rather than guessing', () => {
     const text = call('bibliography', { project: undefined })
     expect(text).toContain('No project is open')
-    expect(text).toContain('.kehikot/paper/')
+    expect(text).toContain('.kehikot/<folder>/<epic>/main.tex')
   })
 
   test('an unknown tool is a JSON-RPC error rather than a thrown exception', () => {

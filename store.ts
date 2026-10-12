@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 
-import { moduleDir } from 'kehikot-module-protocol'
+import { kehikotDir } from 'kehikot-module-protocol'
 
 import { findCites, crossReference, type Cite, type CrossReference } from './bib/cite.ts'
 import { parseBib, view, type BibEntry, type BibView } from './bib/parse.ts'
@@ -11,33 +11,27 @@ import { parseBib, view, type BibEntry, type BibView } from './bib/parse.ts'
  *
  * ## This app owns no data
  *
- * The argument is the paper module's, unchanged, because it is the same
- * argument about the same files: a bibliography is a `.bib` somebody is editing
+ * A bibliography is a `.bib` somebody is editing
  * in a repository with its own history, and the worst thing this app could do
  * is become a second place where one lives. There is no store, no seed, no copy
  * and no cache. Every read opens the file, because the whole value of the page
  * is that a reload shows the entry the author just added.
  *
- * ## The same place as the paper module, deliberately
+ * ## Where a document is, and that this file names nobody
  *
- * A paper lives at `<project>/.kehikot/paper/<epic>/main.tex`, in the project
- * the host says is open (`kehikot.context.projectPath`). That is
- * `kehikko-paper`'s rule — see the essay at the top of its `store.ts` — and this
- * app finds documents by exactly the same rule, through the same protocol
- * helper (`moduleDir(project, 'kehikot.paper')`), so the two can never disagree
- * about where a paper is.
+ * A document is a folder named for its epic with a `main.tex` in it, inside one
+ * of the folders the project keeps under `.kehikot/`:
+ * `<project>/.kehikot/<somewhere>/<epic>/main.tex`, in the project the host says
+ * is open (`kehikot.context.projectPath`). Which folder is not this app's to
+ * know. It looks in each of them, in name order, and reads the first document
+ * it finds for an epic — so it names no other program, needs none to be
+ * installed or running, and reads a document whoever keeps it there.
  *
  * This used to be three environment variables — `KEHIKKO_PAPERS_DIR`,
- * `KEHIKKO_ROADMAP_DIR` and `KEHIKKO_THESIS_DIR` — read because the paper
- * module read them. The paper module dropped them for reasons that apply here
- * word for word: they were one restart from gone, they were per-machine where
- * the fact is per-project, and they let a container on a canvas show another
- * project's material with no way to know. They are ignored now if still set.
- *
- * Finding the folder the same way is not the same as depending on the paper
- * module. Nothing here calls it, imports from it, or needs it to be running;
- * the two are independent programs that happen to look in the same directory
- * the way two editors open the same file.
+ * `KEHIKKO_ROADMAP_DIR` and `KEHIKKO_THESIS_DIR`. They were one restart from
+ * gone, they were per-machine where the fact is per-project, and they let a
+ * container on a canvas show another project's material with no way to know.
+ * They are ignored now if still set.
  *
  * ## No project, no documents
  *
@@ -48,19 +42,11 @@ import { parseBib, view, type BibEntry, type BibView } from './bib/parse.ts'
  *
  * ## The confinement is copied, not shared, and that is the point
  *
- * `confine` below is character for character the paper module's, and it is
- * duplicated on purpose. A shared fence would be a dependency between two
- * modules on the security-critical path; a copied one is a fence each module
- * owns, tests, and can be audited without reading the other repository. Both
- * copies are covered by their own tests. If one is ever changed, the other has
- * to be changed deliberately, which is exactly the review this code deserves.
+ * `confine` below is this app's own, and whatever else reads the same folders
+ * keeps a fence of its own. A shared fence would be a dependency between two
+ * programs on the security-critical path; a copied one is a fence each of them
+ * owns, tests, and can be audited without reading another repository.
  */
-
-/**
- * The module whose folder papers live in. Not this module's id: a paper is the
- * paper module's material, and this app reads it where that module keeps it.
- */
-export const PAPER_MODULE = 'kehikot.paper'
 
 /** A directory holding one document: a `main.tex` and whatever it includes. */
 export interface DocumentRoot {
@@ -78,8 +64,7 @@ export function isEpic(value: unknown): value is string {
  * The project as this app names it to itself: absolute, real, a directory — or
  * `null`, which is the ordinary state of no project being open.
  *
- * The paper module's function, for the paper module's reasons: realpath'd
- * because every fence downstream compares resolved paths, and `null` for every
+ * Realpath'd because every fence downstream compares resolved paths, and `null` for every
  * refusal without saying which — this app is read-only and answers on
  * loopback, and a caller who could tell "not absolute" from "nothing there"
  * could ask it which directories exist on the disk, one question at a time.
@@ -97,17 +82,34 @@ export function projectOf(projectPath: string | null | undefined): string | null
 }
 
 /**
- * Where a project keeps its papers — `<project>/.kehikot/paper` — confined to
- * the project, or null when that folder is not really inside it.
+ * The folders a document may be kept in: every folder directly under the
+ * project's `.kehikot/`, in name order, each confined to the project.
  *
- * `moduleDir` knows the folder's name; this only refuses a `.kehikot` or a
- * `paper/` that is a symlink out of the project, which a string join would
- * walk straight through.
+ * `kehikotDir` knows the folder's name; this refuses a `.kehikot`, or a folder
+ * in it, that is a symlink out of the project, which a string join would walk
+ * straight through. No folder is named here: whichever of them holds an epic's
+ * `main.tex` is where that document is.
  */
-export function papersDir(project: string): string | null {
-  const dir = moduleDir(project, PAPER_MODULE)
-  if (dir === null) return null
-  return confine(project, relative(project, dir))
+export function shelves(project: string): string[] {
+  const top = kehikotDir(project)
+  const within = top === null ? null : confine(project, relative(project, top))
+  if (within === null) return []
+  let names: string[] = []
+  try {
+    names = readdirSync(within)
+  } catch {
+    return []
+  }
+  const out: string[] = []
+  for (const name of names.sort()) {
+    const shelf = confine(project, join(relative(project, top!), name))
+    try {
+      if (shelf !== null && statSync(shelf).isDirectory()) out.push(shelf)
+    } catch {
+      /* Gone between the listing and the look: not a shelf. */
+    }
+  }
+  return out
 }
 
 /**
@@ -143,7 +145,7 @@ const MAIN = 'main.tex'
 const MAX_BYTES = 4_000_000
 
 /**
- * Every paper this project holds, by the paper module's rule.
+ * Every document this project holds, one to an epic.
  *
  * One directory read, and the folder's name is the epic. A directory with no
  * `main.tex` is not a paper — that is what keeps an abandoned folder from
@@ -152,27 +154,33 @@ const MAX_BYTES = 4_000_000
  */
 export function roots(project: string | null): DocumentRoot[] {
   if (project === null) return []
-  const dir = papersDir(project)
-  if (dir === null) return []
-  let entries: string[] = []
-  try {
-    entries = readdirSync(dir)
-  } catch {
-    return []
-  }
   const out: DocumentRoot[] = []
-  for (const entry of entries.sort()) {
-    if (!isEpic(entry)) continue
-    const root = confine(dir, entry)
-    if (!root || !existsSync(join(root, MAIN))) continue
-    out.push({ epic: entry, dir: root })
+  for (const dir of shelves(project)) {
+    let entries: string[] = []
+    try {
+      entries = readdirSync(dir)
+    } catch {
+      continue
+    }
+    for (const entry of entries.sort()) {
+      /* One document to an epic: the first folder that holds one, in name order. */
+      if (!isEpic(entry) || out.some((had) => had.epic === entry)) continue
+      const root = confine(dir, entry)
+      if (!root || !existsSync(join(root, MAIN))) continue
+      out.push({ epic: entry, dir: root })
+    }
   }
-  return out
+  return out.sort((a, b) => (a.epic < b.epic ? -1 : a.epic > b.epic ? 1 : 0))
 }
 
 /** One document's bibliography, cross-referenced against its own prose. */
 export interface Citations {
   epic: string
+  /**
+   * The document's own folder, relative to the project (`/` between segments). With it a file the
+   * document reads has a name the whole project shares: `<dir>/<file>`.
+   */
+  dir: string
   /** The `.bib` the document names, as it names it. Null when it names none. */
   bib: string | null
   /** Every `.tex` that was read, main first. */
@@ -315,7 +323,7 @@ export function list(project: string | null): Brief[] {
  * One document's bibliography, read, with every entry cross-referenced.
  *
  * The `.tex` files are the ones the document itself names — `main.tex` plus one
- * level of `\include` — for the same reason the paper module reads them: the
+ * level of `\include`: the
  * document order is a fact about the source, and a scratch `.tex` lying beside
  * the paper is not part of it. A key cited only in a file the document does not
  * include is a key that does not appear in the PDF, so counting it would be
@@ -382,6 +390,7 @@ export function readCitations(epic: string, project: string | null): Citations |
 
   return {
     epic,
+    dir: relative(project as string, root).split('\\').join('/'),
     bib,
     files,
     rows,

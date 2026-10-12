@@ -37,7 +37,7 @@ export const PREFERRED_PORT = 7930
  *
  * ## What is declared
  *
- * - **`epics:read`.** For the gap, exactly as the paper module asks for it.
+ * - **`epics:read`.** For the gap.
  *   This app can see which epics HAVE a document with a bibliography, because
  *   it is looking at the directory; it cannot see which epics EXIST. An epic
  *   whose paper has no bibliography at all is worth putting on screen and is

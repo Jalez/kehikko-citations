@@ -18,8 +18,8 @@ function says(): Plugin {
     apply: 'serve',
     configureServer(server) {
       server.config.logger.info(
-        'citations: documents come from the open project — <project>/.kehikot/paper/<epic>/main.tex, the same '
-          + 'place the paper module reads them. KEHIKKO_PAPERS_DIR, KEHIKKO_ROADMAP_DIR and KEHIKKO_THESIS_DIR are '
+        'citations: documents come from the open project — <project>/.kehikot/<folder>/<epic>/main.tex. '
+          + 'KEHIKKO_PAPERS_DIR, KEHIKKO_ROADMAP_DIR and KEHIKKO_THESIS_DIR are '
           + 'no longer read and are ignored if still set.',
       )
     },
