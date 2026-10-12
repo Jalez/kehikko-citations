@@ -33,26 +33,37 @@ broken citations.
 
 ## Where it reads from
 
-**The open project, exactly where the paper module reads papers:**
-`<project>/.kehikot/paper/<epic>/main.tex`, with the `.bib` the document names
-beside it. The project is the one the host says is open
-(`kehikot.context.projectPath`); the page sends it with every read, and both MCP
-tools take it as a required `project` argument (an absolute path). The folder is
-found with the protocol's `moduleDir(project, 'kehikot.paper')`, so this app and
-the paper module cannot disagree about where a paper is.
+**The open project.** A document is a folder named for its epic with a
+`main.tex` in it, inside one of the folders the project keeps under
+`.kehikot/`: `<project>/.kehikot/<folder>/<epic>/main.tex`, with the `.bib` the
+document names beside it. Which folder is not this app's to know: it looks in
+each, in name order, and reads the first document it finds for an epic. It
+names no other program and needs none installed or running.
+
+The project is the one the host says is open (`kehikot.context.projectPath`);
+the page sends it with every read, and both MCP tools take it as a required
+`project` argument (an absolute path).
 
 With no project there is nowhere to look, and the page and the tools say so in
 those words rather than showing an empty list. There is no fallback directory.
 
 `KEHIKKO_PAPERS_DIR`, `KEHIKKO_ROADMAP_DIR`, `KEHIKKO_THESIS_DIR` and
-`KEHIKKO_THESIS_EPIC` are no longer read. The paper module dropped them first —
-they were one restart from gone, per-machine where the fact is per-project, and
-let a container show another project's material — and this app follows it, so a
-thesis now lives at `<project>/.kehikot/paper/thesis/` like any other paper.
+`KEHIKKO_THESIS_EPIC` are no longer read: they were one restart from gone,
+per-machine where the fact is per-project, and let a container show another
+project's material.
 
-Reading the same folder is not depending on that module. Nothing here calls
-it, imports from it, or needs it running; the two are independent programs
-looking in the same directory the way two editors open the same file.
+## Under a pick of the epic's parts
+
+A part of an epic lists documents, relative to the project. An entry is about
+every file of the document that cites it, by that file's project-relative name
+(`<the document's folder>/<file>`), so it is in front when a picked part lists
+a file citing it; an entry cited nowhere is in no part. The bibliography and the
+citations that name nothing are narrowed alike, through the protocol's
+`useFocus().narrow` with the one `anchorOf` in `src/live/focus.ts`, and the
+entry a person has open is kept. A pick that leaves no entry says the
+protocol's one sentence; nothing else on the page is about the pick. It works
+the same from a host that sends a part's `documents` and from an older one that
+sends paper-relative `files`. The MCP door is not narrowed.
 
 There is no default and no cache. The `.bib` is being edited while this runs;
 the whole value of the page is that a reload shows the entry the author just
@@ -60,14 +71,14 @@ added.
 
 ## The two fences
 
-The confinement is character for character the paper module's, **copied rather
-than shared**. A shared fence would be a dependency between two modules on the
-security-critical path; a copied one is a fence each module owns and tests, and
-changing one means changing the other deliberately.
+The confinement is this app's own, **copied rather than shared** with anything
+else that reads the same folders. A shared fence would be a dependency between
+two programs on the security-critical path; a copied one is a fence each owns
+and tests.
 
 1. **The shape check.** An epic slug is `^[a-z0-9][a-z0-9-]{0,79}$`, applied
-   before any filesystem call — and to every folder name under
-   `.kehikot/paper/`, since each becomes a slug on the wire.
+   before any filesystem call — and to every folder name a document is
+   looked for under, since each becomes a slug on the wire.
 2. **`realpath` confinement, per root.** `\addbibresource{../../etc/passwd}` and
    `\include{../secret}` are strings an author can write; a symlink inside the
    tree pointing out of it resolves after a plain `resolve()` has already

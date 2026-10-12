@@ -20,7 +20,7 @@
  *
  * ## Why this scans rather than parses
  *
- * The paper module has a real LaTeX parser and this deliberately does not reuse
+ * A real LaTeX parser exists elsewhere in this workspace and this deliberately does not reuse
  * it. Two reasons, and the second is the load-bearing one. First, that parser
  * lives in another repository and importing across module repositories is the
  * coupling these modules exist to avoid. Second, a parser reads a document into

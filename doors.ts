@@ -8,7 +8,7 @@ import { isEpic, list, projectOf, readCitations } from './store.ts'
  *
  * ## Why this is a file of functions rather than a server
  *
- * The argument is the paper module's and it is not about papers. A module is
+ * The argument is every module's and it is not about documents. A module is
  * ONE ORIGIN or it is nothing: the protocol refuses a manifest whose `entry`
  * points anywhere but the origin that served the manifest, and it is right to.
  * So the manifest, the health check, the MCP door and this app's own `/api` are
@@ -73,9 +73,9 @@ const bad = (why: string, status = 400): Reply => ({ status, body: { ok: false, 
  * apart.
  */
 export const NOWHERE =
-  'No project is open, so there is nowhere to look for documents. Papers live in the project, at ' +
-  '<project>/.kehikot/paper/<epic>/main.tex — the same place the paper module reads them — and this app reads ' +
-  'them there and nowhere else. Open a project on this canvas, or pass `project` as the absolute path of the ' +
+  'No project is open, so there is nowhere to look for documents. A document lives in the project, at ' +
+  '<project>/.kehikot/<folder>/<epic>/main.tex, and this app reads ' +
+  'it there and nowhere else. Open a project on this canvas, or pass `project` as the absolute path of the ' +
   'project folder. (KEHIKKO_PAPERS_DIR, KEHIKKO_ROADMAP_DIR and KEHIKKO_THESIS_DIR are no longer read.)'
 
 /** The project a caller named, resolved, or null. */
@@ -87,8 +87,8 @@ function projectIn(value: unknown): string | null {
 const PROJECT = {
   type: 'string',
   description:
-    'Absolute path of the project folder — the same path a host puts in kehikot.context.projectPath. Papers are read ' +
-    'from <project>/.kehikot/paper/<epic>/.',
+    'Absolute path of the project folder — the same path a host puts in kehikot.context.projectPath. Documents are read ' +
+    'from <project>/.kehikot/<folder>/<epic>/.',
 } as const
 
 /* ------------------------------------------------------------------ *
@@ -125,7 +125,7 @@ const TOOLS: Record<string, { description: string; schema: object; run: ToolCall
       const epic = str(args.epic, MAX_SLUG)
       if (!epic) {
         const all = list(project)
-        if (!all.length) return 'No documents in this project — nothing under .kehikot/paper/ has a main.tex.'
+        if (!all.length) return 'No documents in this project — no folder under .kehikot/ has an <epic>/main.tex.'
         return all
           .map((d) => `${d.epic}\t${d.entries === null ? 'no bibliography' : `${d.entries} entries`}\t${d.title ?? ''}`)
           .join('\n')

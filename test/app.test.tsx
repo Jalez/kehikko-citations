@@ -192,11 +192,36 @@ test('a tick does not close the entry somebody has open', async () => {
 test('parts that own none of the citing files leave one sentence in the empty place, not the filter’s and no second line', async () => {
   serveThree()
   await open({ epic: 'a', parts: [{ id: 'results', heading: 'Results', refs: [], picked: true, files: ['chapters/results.tex'] }] })
-  expect((await screen.findByTestId('unfocused')).textContent).toBe('No entry here is cited in the picked part.')
+  expect((await screen.findByTestId('unfocused')).textContent).toBe('No entry is in the picked part.')
   expect(screen.queryByTestId('focus')).toBeNull()
   expect(document.body.textContent).not.toContain('host’s bar')
   expect(document.body.textContent).not.toContain('outside the')
   expect(screen.queryByText('The filter is hiding every entry')).toBeNull()
+})
+
+test('a host that sends a part’s documents narrows by the document’s own folder, and one that sends only files narrows the same', async () => {
+  const row = (key: string, file: string) => ({
+    key, type: 'article', line: 1, times: 1, author: null, year: 2020, title: `Title of ${key}`, venue: null,
+    where: [{ file, line: 1, command: 'cite' }],
+  })
+  globalThis.fetch = (async (url: string) => {
+    const u = new URL(url, 'http://x')
+    if (u.pathname.endsWith('/api/documents')) return Response.json({ documents: [{ epic: 'a', title: null, entries: 2 }] })
+    return Response.json({
+      citations: { ...citations('a'), dir: '.kehikot/writing/a', rows: [row('intro', 'chapters/intro.tex'), row('methods', 'chapters/methods.tex')], broken: [] },
+    })
+  }) as unknown as typeof fetch
+  const withDocuments = (picked: string) =>
+    ['intro', 'methods'].map((id) => ({ id, heading: id, refs: [], picked: id === picked, documents: [`.kehikot/writing/a/chapters/${id}.tex`], files: [] }))
+
+  await open({ epic: 'a', parts: withDocuments('intro') })
+  expect(await screen.findByText('Title of intro')).toBeTruthy()
+  expect(screen.queryByText('Title of methods')).toBeNull()
+  expect(notice()).toBe(false)
+
+  await move({ epic: 'a', parts: withDocuments('methods') })
+  expect(screen.queryByText('Title of intro')).toBeNull()
+  expect(screen.getByText('Title of methods')).toBeTruthy()
 })
 
 test('a document of another epic, picked by hand, is not narrowed by the open epic’s parts', async () => {
@@ -233,7 +258,7 @@ describe('the not-ready moments, each as the one shared cover', () => {
     await open({ projectPath: null, theme: 'dark' })
     expect(cover()?.getAttribute('data-cover')).toBe('no-project')
     expect(document.body.textContent).toContain('No project is open — open one in Kehikot.')
-    expect(document.body.textContent).toContain('.kehikot/paper/<epic>/')
+    expect(document.body.textContent).toContain('out of the open project')
     expect(document.documentElement.classList.contains('dark')).toBe(true)
     expect(document.documentElement.classList.contains('light')).toBe(false)
   })

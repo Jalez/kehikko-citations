@@ -13,7 +13,7 @@ import {
 
 import { ID } from '../manifest.ts'
 import type { Brief, BrokenRow, CitationRow, Citations } from '../store.ts'
-import { anchorOf, saidOfNone } from './live/focus.ts'
+import { NOUN, anchorOf, inHand } from './live/focus.ts'
 import { reading, writing, type Kept } from './live/keep.ts'
 import { DEFAULT_ORDER, order, type Ordering } from './live/order.ts'
 import { EVERYTHING, narrowing, sift, type Sifting } from './live/sift.ts'
@@ -51,7 +51,7 @@ import { cn } from '@/lib/utils.ts'
  * `/api/documents` whenever the project changes, and `/api/citations` whenever
  * the epic or the project changes. Both name the project the host said is open
  * (`kehikot.context.projectPath`): documents are read from
- * `<project>/.kehikot/paper/`, exactly where the paper module reads them. No
+ * a folder under `<project>/.kehikot/`, wherever it is kept (`store.ts`). No
  * polling and no cache: the `.bib` is being edited while this is running, and
  * the whole value of the page is that a reload shows the entry the author just
  * added. A cache here would show the bibliography from before lunch with every
@@ -59,7 +59,7 @@ import { cn } from '@/lib/utils.ts'
  */
 
 /** The second line under "No project is open": what this app would read if one were. */
-const NO_PROJECT = 'Citations reads the .bib and the .tex beside it out of the open project, at .kehikot/paper/<epic>/.'
+const NO_PROJECT = 'Citations reads a document’s .bib and the .tex beside it out of the open project.'
 
 const NO_ROWS: CitationRow[] = []
 const NO_BROKEN: BrokenRow[] = []
@@ -222,12 +222,16 @@ export function App() {
    * takes nothing out of somebody's hands. No line says any of this: see
    * `live/focus.ts`.
    */
-  const focus = useFocus({ parts: showing === epic ? parts : [], epic })
+  const focus = useFocus({ parts: showing === epic ? parts : [], epic, projectPath: project })
+  const dir = sight.at === 'read' ? sight.citations.dir : null
   const inParts = useMemo(
-    () => focus.narrow(rows, anchorOf, { keep: (row) => row.key === openKey }),
-    [focus, rows, openKey],
+    () => focus.narrow(rows, (row) => anchorOf(row, dir), { noun: NOUN, keep: (row) => inHand(row, openKey) }),
+    [focus, rows, dir, openKey],
   )
-  const broken = useMemo(() => focus.narrow(brokenRows, anchorOf), [focus, brokenRows])
+  const broken = useMemo(
+    () => focus.narrow(brokenRows, (row) => anchorOf(row, dir), { noun: NOUN, keep: (row) => inHand(row, openKey) }),
+    [focus, brokenRows, dir, openKey],
+  )
   const shown = useMemo(() => order(sift(inParts.shown, sifting), ordering), [inParts, sifting, ordering])
 
   if (whole) {
@@ -278,7 +282,7 @@ export function App() {
           sight={sight}
           shown={shown}
           inParts={inParts.shown.length}
-          none={saidOfNone(focus.parts)}
+          none={inParts.empty}
           broken={broken.shown}
           sifting={sifting}
           onClear={() => setSifting(EVERYTHING)}
@@ -367,7 +371,7 @@ function Body({
   shown: ReturnType<typeof order>
   /** How many entries the ticked parts left, before the filter. Every entry when nothing is ticked. */
   inParts: number
-  /** The one sentence for a list the ticked parts emptied. See `live/focus.ts`. */
+  /** The protocol’s one sentence for a list the picked parts emptied. See `live/focus.ts`. */
   none: string
   /** The citations naming nothing, narrowed likewise. */
   broken: BrokenRow[]
@@ -391,7 +395,7 @@ function Body({
   if (sight.at === 'missing') {
     return say(
       `Nothing in this project holds a document for “${sight.epic}”`,
-      `That is not a failure to read one — there is no .kehikot/paper/${sight.epic}/ in the project, or it has no main.tex in it.`,
+      `That is not a failure to read one — no folder under the project’s .kehikot/ has a ${sight.epic}/ with a main.tex in it.`,
     )
   }
   if (sight.at === 'refused') return say('This document could not be read', sight.why)

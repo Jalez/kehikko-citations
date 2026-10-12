@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { bibTargets, isEpic, list, papersDir, projectOf, readCitations, roots } from '../store.ts'
+import { bibTargets, isEpic, list, projectOf, readCitations, roots, shelves } from '../store.ts'
 
 /**
  * The store, which is a reader over somebody else's directory.
@@ -101,9 +101,36 @@ describe('where the documents come from', () => {
     expect(projectOf(join(root, 'nope'))).toBeNull()
   })
 
-  test('papers are read from <project>/.kehikot/paper/, where the paper module keeps them', () => {
-    expect(papersDir(project)).toBe(join(project, '.kehikot', 'paper'))
+  test('documents are read from the folders the project keeps under .kehikot/, whichever holds them', () => {
+    expect(shelves(project)).toContain(join(project, '.kehikot', 'paper'))
     expect(roots(project).map((r) => r.epic)).toEqual(['plain-paper', 'thesis'])
+  })
+
+  test('a document says its own folder, relative to the project: the name a part lists its files under', () => {
+    expect(readCitations('thesis', project)!.dir).toBe('.kehikot/paper/thesis')
+  })
+
+  test('a document kept in a folder of another name is read all the same, and no folder is named here', () => {
+    const elsewhere = join(root, 'elsewhere')
+    mkdirSync(join(elsewhere, '.kehikot', 'writing', 'essay'), { recursive: true })
+    writeFileSync(join(elsewhere, '.kehikot', 'writing', 'essay', 'main.tex'), '\\title{An essay}\n\\addbibresource{e.bib}\nSaid \\cite{one}.')
+    writeFileSync(join(elsewhere, '.kehikot', 'writing', 'essay', 'e.bib'), '@misc{one, title = {One}, year = {2001}}')
+    /* A folder that is not a document's, and a file where a folder is looked for: neither is one. */
+    mkdirSync(join(elsewhere, '.kehikot', 'notes', 'essay'), { recursive: true })
+    writeFileSync(join(elsewhere, '.kehikot', 'stray.json'), '{}')
+    expect(roots(elsewhere).map((r) => r.epic)).toEqual(['essay'])
+    const read = readCitations('essay', elsewhere)!
+    expect(read.dir).toBe('.kehikot/writing/essay')
+    expect(read.rows.map((r) => [r.key, r.times])).toEqual([['one', 1]])
+  })
+
+  test('two folders holding a document for one epic: the first in name order is the document', () => {
+    const twice = join(root, 'twice')
+    for (const shelf of ['b-later', 'a-first']) {
+      mkdirSync(join(twice, '.kehikot', shelf, 'essay'), { recursive: true })
+      writeFileSync(join(twice, '.kehikot', shelf, 'essay', 'main.tex'), `\\title{From ${shelf}}`)
+    }
+    expect(list(twice).map((d) => d.title)).toEqual(['From a-first'])
   })
 
   test('the environment variables this used to read do nothing now', () => {
@@ -133,7 +160,7 @@ describe('where the documents come from', () => {
     const escaper = join(root, 'escaper')
     mkdirSync(join(escaper, '.kehikot'), { recursive: true })
     symlinkSync(join(project, '.kehikot', 'paper'), join(escaper, '.kehikot', 'paper'))
-    expect(papersDir(escaper)).toBeNull()
+    expect(shelves(escaper)).toEqual([])
     expect(roots(escaper)).toEqual([])
   })
 })
