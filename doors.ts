@@ -284,7 +284,12 @@ export function answer(
     const project = projectIn(query.get('project'))
     if (project === null) return { status: 503, body: { ok: false, error: NOWHERE, nowhere: true } }
     const found = readCitations(epic, project)
-    if (!found) return bad(`no document for "${epic}" in this project`, 404)
+    /* An epic with no document is an ANSWER, not a failure: the page asks about every epic the canvas
+       opens and draws its own sentence for this one. A 404 put a red line in the console of every
+       canvas that opened such an epic, for nothing that had gone wrong. So it is `ok: false` under 200
+       with `missing: true` (as Paper's `/api/paper` does), and the statuses are kept for what IS
+       wrong: no project (503), a name that is not an epic's (400). */
+    if (!found) return ok({ ok: false, missing: true, error: `no document for "${epic}" in this project` })
     return ok({ ok: true, citations: found })
   }
 

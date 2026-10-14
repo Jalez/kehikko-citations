@@ -319,6 +319,16 @@ describe('the not-ready moments, each as the one shared cover', () => {
     expect(document.body.textContent).not.toContain('No project')
   })
 
+  test('the same sentence when the server answers "missing" under 200', async () => {
+    globalThis.fetch = (async (url: string) => {
+      const u = new URL(url, 'http://x')
+      if (u.pathname.endsWith('/api/documents')) return Response.json({ documents: [] })
+      return Response.json({ ok: false, missing: true, error: 'no document for "a" in this project' })
+    }) as unknown as typeof fetch
+    await open({ epic: 'a' })
+    await screen.findByText('Nothing in this project holds a document for “a”')
+  })
+
   test('no document for the epic stays this app’s own sentence', async () => {
     globalThis.fetch = (async (url: string) => {
       const u = new URL(url, 'http://x')
