@@ -18,7 +18,7 @@ import { reading, writing, type Kept } from './live/keep.ts'
 import { DEFAULT_ORDER, ORDER_LABELS, order, type Ordering } from './live/order.ts'
 import { EVERYTHING, narrowing, sift, type Sifting } from './live/sift.ts'
 import { BrokenList, Row } from './view/citation-row.tsx'
-import { HeaderFallback } from './view/header-fallback.tsx'
+import { fallbackShows, HeaderFallback, headerDrawn, rememberHeaderDrawn } from './view/header-fallback.tsx'
 import { headerOf } from './header.ts'
 import { Toolbar } from './view/toolbar.tsx'
 import { cn } from '@/lib/utils.ts'
@@ -78,25 +78,6 @@ type Sight =
   | { at: 'refused'; why: string }
   | { at: 'read'; citations: Citations }
 
-const DRAWN_KEY = 'kehikot.citations.header-drawn'
-
-/** Whether a host has ever pressed a header item on this page's origin: such a host draws the header. */
-function headerDrawn(): boolean {
-  try {
-    return window.localStorage.getItem(DRAWN_KEY) === 'yes'
-  } catch {
-    return false
-  }
-}
-
-function rememberHeaderDrawn(): void {
-  try {
-    window.localStorage.setItem(DRAWN_KEY, 'yes')
-  } catch {
-    /* It is hidden for this page's life all the same. */
-  }
-}
-
 export function App() {
   /* Counts the presses a host sent: a host that sends one draws the header, and this page need not. */
   const [pressed, setPressed] = useState(headerDrawn)
@@ -129,7 +110,7 @@ export function App() {
     },
     { kept: KEPT },
   )
-  const { where, epic, parts, kept, remember, projectPath: project, header } = host
+  const { where, epic, parts, kept, remember, projectPath: project, header, drawsHeader } = host
   /* How this page's own server last answered: `down` when nothing did, `stale` when it is another process now. */
   const server = useServerStanding()
   const [documents, setDocuments] = useState<Brief[]>([])
@@ -302,7 +283,7 @@ export function App() {
     return `Nothing here is called ${item}.`
   }
   /* Drawn by the page itself where nobody frames it, or no host has pressed one of these items yet. */
-  const fallback = where !== 'hosted' || !pressed
+  const fallback = fallbackShows(where, drawsHeader, pressed)
 
   if (whole) {
     return (
