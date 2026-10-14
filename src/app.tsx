@@ -15,9 +15,11 @@ import { ID } from '../manifest.ts'
 import type { Brief, BrokenRow, CitationRow, Citations } from '../store.ts'
 import { NOUN, anchorOf, inHand } from './live/focus.ts'
 import { reading, writing, type Kept } from './live/keep.ts'
-import { DEFAULT_ORDER, order, type Ordering } from './live/order.ts'
+import { DEFAULT_ORDER, ORDER_LABELS, order, type Ordering } from './live/order.ts'
 import { EVERYTHING, narrowing, sift, type Sifting } from './live/sift.ts'
 import { BrokenList, Row } from './view/citation-row.tsx'
+import { HeaderFallback } from './view/header-fallback.tsx'
+import { headerOf } from './header.ts'
 import { Toolbar } from './view/toolbar.tsx'
 import { cn } from '@/lib/utils.ts'
 
@@ -76,7 +78,29 @@ type Sight =
   | { at: 'refused'; why: string }
   | { at: 'read'; citations: Citations }
 
+const DRAWN_KEY = 'kehikot.citations.header-drawn'
+
+/** Whether a host has ever pressed a header item on this page's origin: such a host draws the header. */
+function headerDrawn(): boolean {
+  try {
+    return window.localStorage.getItem(DRAWN_KEY) === 'yes'
+  } catch {
+    return false
+  }
+}
+
+function rememberHeaderDrawn(): void {
+  try {
+    window.localStorage.setItem(DRAWN_KEY, 'yes')
+  } catch {
+    /* It is hidden for this page's life all the same. */
+  }
+}
+
 export function App() {
+  /* Counts the presses a host sent: a host that sends one draws the header, and this page need not. */
+  const [pressed, setPressed] = useState(headerDrawn)
+  const press = useRef<(press: { item: string; value?: string | boolean }) => string | void>(() => 'Nothing is open here.')
   const [epics, setEpics] = useState<string[] | null>(null)
   const host = useHost<Kept>(
     ID,
@@ -85,6 +109,11 @@ export function App() {
        * The epic list is enrichment, asked for on the greeting. Refused, unanswered, or asked of
        * a host that has never heard of the method, the page is unchanged but for one muted line.
        */
+      onPress: (pressing) => {
+        rememberHeaderDrawn()
+        setPressed(true)
+        return press.current(pressing)
+      },
       onHello: () => {
         void host
           .request('epics.list')
@@ -100,7 +129,7 @@ export function App() {
     },
     { kept: KEPT },
   )
-  const { where, epic, parts, kept, remember, projectPath: project } = host
+  const { where, epic, parts, kept, remember, projectPath: project, header } = host
   /* How this page's own server last answered: `down` when nothing did, `stale` when it is another process now. */
   const server = useServerStanding()
   const [documents, setDocuments] = useState<Brief[]>([])
@@ -234,6 +263,44 @@ export function App() {
   )
   const shown = useMemo(() => order(sift(inParts.shown, sifting), ordering), [inParts, sifting, ordering])
 
+  /* ---- The header: what the host draws in the container's own row ------- */
+  const items = headerOf({
+    documents,
+    showing,
+    list: sight.at === 'read' && sight.citations.bib !== null ? { standing: sifting.standing, ordering } : null,
+  })
+  /* Declared again when the list is a different list, and never otherwise: the query is not in it. */
+  const itemsKey = JSON.stringify(items)
+  useEffect(() => {
+    header(items)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [header, itemsKey])
+  useEffect(() => () => header([]), [header])
+
+  press.current = ({ item, value }) => {
+    if (typeof value !== 'string') return `${item} takes one of its options.`
+    if (item === 'document') {
+      const at = value.startsWith('d') ? Number(value.slice(1)) : -1
+      const one = documents[at]
+      if (!one) return 'That document is not among the ones listed.'
+      setPicked(one.epic)
+      return
+    }
+    if (item === 'standing') {
+      if (value !== 'all' && value !== 'cited' && value !== 'uncited') return 'Show is All, Cited or Uncited.'
+      setSifting((was) => ({ ...was, standing: value }))
+      return
+    }
+    if (item === 'order') {
+      if (!(value in ORDER_LABELS)) return 'That is not an order.'
+      setOrdering(value as Ordering)
+      return
+    }
+    return `Nothing here is called ${item}.`
+  }
+  /* Drawn by the page itself where nobody frames it, or no host has pressed one of these items yet. */
+  const fallback = where !== 'hosted' || !pressed
+
   if (whole) {
     return (
       <div className="flex h-full min-w-0 flex-col bg-background text-foreground">
@@ -251,14 +318,13 @@ export function App() {
      * would decide this column's layout from the size of the host's browser
      * window, which says nothing at all about how wide this container is.
      */
-    <div className="@container flex h-full min-w-0 flex-col bg-background text-foreground">
-      <Head sight={sight} documents={documents} showing={showing} onPick={setPicked} epics={epics} />
+    <div className="@container relative flex h-full min-w-0 flex-col bg-background text-foreground">
+      {fallback && items.length ? <HeaderFallback items={items} onPress={(p) => void press.current(p)} className="absolute top-1 right-1" /> : null}
+      <Head sight={sight} epics={epics} documents={documents} showing={showing} padded={fallback && items.length > 0} />
       {sight.at === 'read' && sight.citations.bib !== null && (
         <Toolbar
           sifting={sifting}
-          ordering={ordering}
           onSift={setSifting}
-          onOrder={setOrdering}
           shown={shown.length}
           total={rows.length}
         />
@@ -271,7 +337,7 @@ export function App() {
             onRetry={() => setAgain((n) => n + 1)}
             detail={
               part === 'no-epic' && documents.length > 1
-                ? 'Or pick one of the documents above to see its citations.'
+                ? 'Or pick one of the documents in the Document menu to see its citations.'
                 : part === 'no-project' && sight.at === 'nowhere'
                   ? sight.why
                   : null
@@ -297,54 +363,26 @@ export function App() {
 
 function Head({
   sight,
+  epics,
   documents,
   showing,
-  onPick,
-  epics,
+  padded,
 }: {
   sight: Sight
+  epics: string[] | null
   documents: Brief[]
   showing: string | null
-  onPick: (epic: string) => void
-  epics: string[] | null
+  /** The page's own "⋯" is laid over the corner: keep the title out from under it. */
+  padded: boolean
 }) {
   const bib = sight.at === 'read' ? sight.citations.bib : null
   return (
-    <header className="min-w-0 border-b border-border px-2 py-2">
+    <header className={cn('min-w-0 border-b border-border px-2 py-1.5', padded && 'pr-8')}>
       <h1 className="text-[0.8rem] leading-tight font-semibold break-words">
         {showing ?? 'Citations'}
         {bib && <span className="ml-1 font-mono text-[0.68rem] font-normal text-muted-foreground">{bib}</span>}
       </h1>
-      {/*
-        * The picker, which is what stands where a canvas would be.
-        *
-        * Drawn whenever there is more than one document or nothing has said
-        * which — never hidden because a host happens to be framing this, since
-        * a reader looking at a bibliography beside one paper may perfectly well
-        * want another. `documents` is the open project's own folder and needs nobody.
-        */}
-      {documents.length > 1 && (
-        <div className="mt-1 flex flex-wrap gap-1">
-          {documents.map((d) => (
-            <button
-              key={d.epic}
-              type="button"
-              onClick={() => onPick(d.epic)}
-              title={d.title ?? d.epic}
-              aria-pressed={showing === d.epic}
-              className={cn(
-                'max-w-full rounded-md border px-1.5 py-0.5 text-[0.66rem] break-all',
-                showing === d.epic
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-input text-muted-foreground hover:bg-accent',
-              )}
-            >
-              {d.epic}
-              <span className="ml-1 opacity-70">{d.entries === null ? '·' : d.entries}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {/* The documents of the project are the header's Document switch (`header.ts`): no row of pills here. */}
       {/* Enrichment, drawn as enrichment: one muted line when a host answered,
           and nothing at all when it did not. */}
       {epics && epics.length > documents.length && (

@@ -3,6 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { toolEffect } from 'kehikot-module-protocol'
+
 import { answer } from '../doors.ts'
 import { ID, MANIFEST } from '../manifest.ts'
 
@@ -70,6 +72,19 @@ describe('there is no write path', () => {
     const reply = post('/mcp', { jsonrpc: '2.0', id: 1, method: 'tools/list' })
     const tools = ((reply?.body as { result: { tools: { name: string }[] } }).result.tools ?? []).map((t) => t.name)
     expect(tools).toEqual(['bibliography', 'problems'])
+  })
+
+  test('every tool says so in MCP’s own words: it reads', () => {
+    const reply = post('/mcp', { jsonrpc: '2.0', id: 1, method: 'tools/list' })
+    const tools = (reply?.body as { result: { tools: { name: string; annotations?: object }[] } }).result.tools
+    expect(tools.map((one) => toolEffect(one))).toEqual(['reads', 'reads'])
+  })
+
+  test('the project may still be named projectPath, as a caller from before the one spelling does', () => {
+    const call = (args: Record<string, unknown>) =>
+      JSON.stringify(post('/mcp', { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'problems', arguments: args } })?.body)
+    expect(call({ projectPath: project, epic: 'thesis' })).toEqual(call({ project, epic: 'thesis' }))
+    expect(call({ project, epic: 'thesis' })).not.toContain('No project is open')
   })
 
   test('a GET on the MCP door is refused', () => {

@@ -40,6 +40,12 @@ async function open(context: Record<string, unknown> = {}) {
 
 const cover = () => document.querySelector('[data-cover]')
 
+/** The documents are the header's Document switch; with no host drawing it, the page's own "⋯" is the way to it. */
+async function pickDocument(name: string) {
+  if (!document.querySelector('[role="menu"]')) fireEvent.click(await screen.findByLabelText(/^Menu/))
+  fireEvent.click(await screen.findByRole('menuitemradio', { name: new RegExp(`^✓?\\s*${name}$`) }))
+}
+
 beforeEach(() => {
   resetServerStanding()
   /* The mailbox replays what arrived before anybody listened, and the last test's greeting is not this one's. */
@@ -87,7 +93,7 @@ test('a hand pick holds only until the epic changes', async () => {
   await open({ epic: 'a' })
   await screen.findByText('Title of a')
 
-  fireEvent.click(await screen.findByRole('button', { name: /^a/ }))
+  await pickDocument('a')
   await move({ epic: 'b' })
 
   await screen.findByText('Title of b')
@@ -99,7 +105,7 @@ test('a hand pick is dropped when the project changes, not asked of the new proj
   const asked = serve()
   await open({ epic: 'a', projectPath: '/p' })
   await screen.findByText('Title of a')
-  fireEvent.click(await screen.findByRole('button', { name: /^b/ }))
+  await pickDocument('b')
   await screen.findByText('Title of b')
 
   await move({ epic: 'a', projectPath: '/q' })
@@ -117,8 +123,8 @@ test('with no epic and no pick the last document is not left drawn', async () =>
 
   await waitFor(() => expect(cover()?.getAttribute('data-cover')).toBe('no-epic'))
   expect(document.body.textContent).toContain('No epic is open — open one in Kehikot.')
-  /* Two documents are above, so the cover says they can be picked. */
-  expect(document.body.textContent).toContain('Or pick one of the documents above')
+  /* Two documents are listed, so the cover says they can be picked. */
+  expect(document.body.textContent).toContain('Or pick one of the documents in the Document menu')
   expect(screen.queryByText('Title of a')).toBeNull()
 })
 
@@ -230,7 +236,7 @@ test('a document of another epic, picked by hand, is not narrowed by the open ep
   await screen.findByText('Title of intro')
   expect(screen.queryByText('Title of nowhere')).toBeNull()
 
-  fireEvent.click(screen.getByRole('button', { name: /^b/ }))
+  await pickDocument('b')
 
   await screen.findByText('Title of methods')
   expect(screen.getByText('Title of nowhere')).toBeTruthy()
@@ -289,12 +295,12 @@ describe('the not-ready moments, each as the one shared cover', () => {
     globalThis.fetch = (async () => {
       throw new TypeError('Load failed')
     }) as unknown as typeof fetch
-    fireEvent.click(screen.getByRole('button', { name: /^b/ }))
+    await pickDocument('b')
     await waitFor(() => expect(cover()?.getAttribute('data-cover')).toBe('down'))
     expect(document.body.textContent).toContain('Citations’ own server is not answering.')
     expect(document.body.textContent).not.toContain('Load failed')
     /* The picker is still there: the cover is under the head, not over it. */
-    expect(screen.getByRole('button', { name: /^a/ })).toBeTruthy()
+    expect(document.querySelector('[data-header-fallback]')).toBeTruthy()
 
     globalThis.fetch = working
     fireEvent.click(within(cover() as HTMLElement).getByRole('button', { name: 'Try again' }))
@@ -352,4 +358,34 @@ describe('the filter the host keeps', () => {
     expect(KEPT.read('not json')).toBeNull()
     expect(KEPT.read('{"v":-1}')).toBeNull()
   })
+})
+
+test('hosted, the page declares its header, draws no pills and no select, and keeps the search and the count', async () => {
+  serve()
+  const sent: { type: string; items?: { id: string; kind: string }[] }[] = []
+  const listen = (event: MessageEvent) => {
+    if (event.data && typeof event.data === 'object' && 'type' in event.data) sent.push(event.data)
+  }
+  window.addEventListener('message', listen)
+  await open({ epic: 'a' })
+  await screen.findByText('Title of a')
+  await settle(100)
+  window.removeEventListener('message', listen)
+  const last = sent.filter((one) => one.type === 'kehikot.header').at(-1)
+  expect(last?.items?.map((one) => `${one.kind}:${one.id}`)).toEqual(['switch:document', 'switch:standing', 'switch:order'])
+  expect(screen.queryByRole('combobox')).toBeNull()
+  expect(screen.queryByRole('button', { name: /^Cited|^Uncited|^Unc\./ })).toBeNull()
+  expect(screen.getByLabelText('Filter the bibliography')).toBeTruthy()
+  expect(document.body.textContent).toContain('1 of 1')
+})
+
+test('the standing and the order are pressed through the same menu a host would press them in', async () => {
+  serve()
+  await open({ epic: 'a' })
+  await screen.findByText('Title of a')
+  fireEvent.click(await screen.findByLabelText(/^Menu/))
+  fireEvent.click(await screen.findByRole('menuitemradio', { name: /^✓?\s*Uncited$/ }))
+  /* The one entry has times: 1, so uncited leaves nothing, and the count says so beside the search. */
+  await waitFor(() => expect(document.body.textContent).toContain('0 of 1'))
+  expect(document.body.textContent).toContain('show everything')
 })
