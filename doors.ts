@@ -1,3 +1,4 @@
+import { doorContext } from 'kehikot-module-protocol'
 import { establishBuild, type Reply } from 'kehikot-module-protocol/serve'
 
 import { ID, MANIFEST, VERSION } from './manifest.ts'
@@ -120,9 +121,9 @@ const TOOLS: Record<string, { description: string; schema: object; run: ToolCall
       required: ['project'],
     },
     run(args) {
-      const project = projectIn(args.project)
+      const project = projectIn(doorContext(args).project)
       if (project === null) return NOWHERE
-      const epic = str(args.epic, MAX_SLUG)
+      const epic = str(doorContext(args).epic, MAX_SLUG)
       if (!epic) {
         const all = list(project)
         if (!all.length) return 'No documents in this project — no folder under .kehikot/ has an <epic>/main.tex.'
@@ -157,9 +158,9 @@ const TOOLS: Record<string, { description: string; schema: object; run: ToolCall
       required: ['project', 'epic'],
     },
     run(args) {
-      const project = projectIn(args.project)
+      const project = projectIn(doorContext(args).project)
       if (project === null) return NOWHERE
-      const epic = str(args.epic, MAX_SLUG)
+      const epic = str(doorContext(args).epic, MAX_SLUG)
       if (!isEpic(epic)) return 'that is not an epic name'
       const found = readCitations(epic, project)
       if (!found) return `no document for "${epic}" in this project`
@@ -216,6 +217,8 @@ function mcp(request: Rpc): Reply {
         name,
         description: tool.description,
         inputSchema: tool.schema,
+        /* Both only read: a bibliography is read out of the files and nothing is written anywhere. */
+        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       })),
     })
   }
