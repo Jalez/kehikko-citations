@@ -135,6 +135,13 @@ describe('the ordinary doors', () => {
     expect(body.citations.broken.map((b) => b.key)).toEqual(['ghost'])
   })
 
+  test('an epic with no document is an answer under 200, not a 404', () => {
+    const reply = get('/api/citations', 'epic=no-such-epic')
+    expect(reply?.status).toBe(200)
+    expect(reply?.body).toMatchObject({ ok: false, missing: true })
+    expect((reply?.body as { error: string }).error).toContain('no-such-epic')
+  })
+
   test('an epic name that is not one is refused before any filesystem call', () => {
     /* Refused the same way whether or not the document exists. A refusal that
        distinguished the two would be a way to enumerate what is on this disk. */

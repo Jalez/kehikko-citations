@@ -213,7 +213,10 @@ export function App() {
       if (asked.ok && asked.body?.citations) return setSight({ at: 'read', citations: asked.body.citations })
       if (asked.ok) return setSight({ at: 'refused', why: 'This app’s own server answered without the citations.' })
       if (asked.kind === 'down') return setSight({ at: 'unreachable' })
-      if (asked.status === 404) return setSight({ at: 'missing', epic: showing })
+      /* `missing` is the server's own word for "no document for this epic", answered under 200; the 404
+         is kept for a server that predates it. */
+      if (asked.status === 404 || (asked.body as { missing?: unknown } | null)?.missing === true)
+        return setSight({ at: 'missing', epic: showing })
       if ((asked.body as { nowhere?: unknown } | null)?.nowhere === true) return setSight({ at: 'nowhere', why: asked.error })
       setSight({ at: 'refused', why: asked.error })
     })
