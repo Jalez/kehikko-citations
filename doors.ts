@@ -77,7 +77,7 @@ export const NOWHERE =
   'No project is open, so there is nowhere to look for documents. A document lives in the project, at ' +
   '<project>/.kehikot/<folder>/<epic>/main.tex, and this app reads ' +
   'it there and nowhere else. Open a project on this canvas, or pass `project` as the absolute path of the ' +
-  'project folder. (KEHIKKO_PAPERS_DIR, KEHIKKO_ROADMAP_DIR and KEHIKKO_THESIS_DIR are no longer read.)'
+  'project folder. (KEHIKKO_PAPERS_DIR and KEHIKKO_THESIS_DIR are no longer read.)'
 
 /** The project a caller named, resolved, or null. */
 function projectIn(value: unknown): string | null {

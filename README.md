@@ -47,7 +47,7 @@ the page sends it with every read, and both MCP tools take it as a required
 With no project there is nowhere to look, and the page and the tools say so in
 those words rather than showing an empty list. There is no fallback directory.
 
-`KEHIKKO_PAPERS_DIR`, `KEHIKKO_ROADMAP_DIR`, `KEHIKKO_THESIS_DIR` and
+`KEHIKKO_PAPERS_DIR`, `KEHIKKO_THESIS_DIR` and
 `KEHIKKO_THESIS_EPIC` are no longer read: they were one restart from gone,
 per-machine where the fact is per-project, and let a container show another
 project's material.

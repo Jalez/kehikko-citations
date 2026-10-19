@@ -35,7 +35,7 @@
 #
 # Documents are read from the project the host says is open, at
 # `<project>/.kehikot/paper/<epic>/main.tex` — where the paper module reads
-# papers. `KEHIKKO_PAPERS_DIR`, `KEHIKKO_ROADMAP_DIR` and `KEHIKKO_THESIS_DIR`
+# papers. `KEHIKKO_PAPERS_DIR` and `KEHIKKO_THESIS_DIR`
 # used to say where to look and are no longer read; the paper module dropped
 # them first, and the essay at the top of `store.ts` says why.
 #
@@ -82,8 +82,8 @@ if [ ! -d node_modules ] || [ ! -f "$INSTALLED" ] || [ bun.lock -nt "$INSTALLED"
   VITE_FORCE=--force
 fi
 
-if [ -n "${KEHIKKO_PAPERS_DIR:-}${KEHIKKO_ROADMAP_DIR:-}${KEHIKKO_THESIS_DIR:-}" ]; then
-  echo "citations: KEHIKKO_PAPERS_DIR / KEHIKKO_ROADMAP_DIR / KEHIKKO_THESIS_DIR are set and no longer read." >&2
+if [ -n "${KEHIKKO_PAPERS_DIR:-}${KEHIKKO_THESIS_DIR:-}" ]; then
+  echo "citations: KEHIKKO_PAPERS_DIR / KEHIKKO_THESIS_DIR are set and no longer read." >&2
   echo "citations: documents come from the open project, at <project>/.kehikot/paper/<epic>/main.tex." >&2
 fi
 

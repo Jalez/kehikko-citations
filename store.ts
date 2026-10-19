@@ -27,8 +27,8 @@ import { parseBib, view, type BibEntry, type BibView } from './bib/parse.ts'
  * it finds for an epic — so it names no other program, needs none to be
  * installed or running, and reads a document whoever keeps it there.
  *
- * This used to be three environment variables — `KEHIKKO_PAPERS_DIR`,
- * `KEHIKKO_ROADMAP_DIR` and `KEHIKKO_THESIS_DIR`. They were one restart from
+ * This used to be two environment variables — `KEHIKKO_PAPERS_DIR` and
+ * `KEHIKKO_THESIS_DIR`. They were one restart from
  * gone, they were per-machine where the fact is per-project, and they let a
  * container on a canvas show another project's material with no way to know.
  * They are ignored now if still set.
