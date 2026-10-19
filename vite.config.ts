@@ -19,7 +19,7 @@ function says(): Plugin {
     configureServer(server) {
       server.config.logger.info(
         'citations: documents come from the open project — <project>/.kehikot/<folder>/<epic>/main.tex. '
-          + 'KEHIKKO_PAPERS_DIR, KEHIKKO_ROADMAP_DIR and KEHIKKO_THESIS_DIR are '
+          + 'KEHIKKO_PAPERS_DIR and KEHIKKO_THESIS_DIR are '
           + 'no longer read and are ignored if still set.',
       )
     },
