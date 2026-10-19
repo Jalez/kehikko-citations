@@ -38,7 +38,7 @@ import { cn } from '@/lib/utils.ts'
  *
  * In particular `no bibliography` and `empty bibliography` stay apart. The
  * first is a document with no `\addbibresource` and no `\bibliography` — every
- * roadmap paper here is one, and it is not a fault. The second is a document
+ * draft paper here is one, and it is not a fault. The second is a document
  * that names a `.bib` holding nothing, which is a file somebody should look at.
  *
  * ## What it takes from a host
