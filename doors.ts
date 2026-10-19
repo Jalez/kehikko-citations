@@ -1,8 +1,8 @@
 import { doorContext } from 'kehikot-module-protocol'
-import { establishBuild, type Reply } from 'kehikot-module-protocol/serve'
+import { DOOR_PROJECT_SAYS, establishBuild, resolveDoorProject, type HostHasProjectOptions, type Reply } from 'kehikot-module-protocol/serve'
 
 import { ID, MANIFEST, VERSION } from './manifest.ts'
-import { isEpic, list, projectOf, readCitations } from './store.ts'
+import { isEpic, list, readCitations } from './store.ts'
 
 /**
  * Every door this app answers on that is not the page itself.
@@ -79,9 +79,23 @@ export const NOWHERE =
   'it there and nowhere else. Open a project on this canvas, or pass `project` as the absolute path of the ' +
   'project folder. (KEHIKKO_PAPERS_DIR and KEHIKKO_THESIS_DIR are no longer read.)'
 
-/** The project a caller named, resolved, or null. */
-function projectIn(value: unknown): string | null {
-  return projectOf(str(value, MAX_PROJECT))
+/** Where a test stands in for the host. */
+export const ASK: { options: HostHasProjectOptions } = { options: {} }
+
+/**
+ * The project a caller named, as the host has it. Nothing is read from a folder the host does not
+ * vouch for: a folder renamed away leaves its old path free for an unrelated one. `path` is null
+ * when there is no project to look in, and then `why` says which of the two it is — nothing named
+ * (`NOWHERE`), or named and refused (the protocol's sentence, e.g. "moved to …"). `note` is set when
+ * a move was followed, and is added to the answer.
+ */
+type At = { path: string; note: string | null; why: null } | { path: null; note: null; why: string }
+async function projectIn(value: unknown): Promise<At> {
+  const named = str(value, MAX_PROJECT).trim()
+  if (!named) return { path: null, note: null, why: NOWHERE }
+  const at = await resolveDoorProject(named, ASK.options)
+  if (!at.ok) return { path: null, note: null, why: at.why }
+  return { path: at.path, note: at.movedFrom ? DOOR_PROJECT_SAYS.followed(at.movedFrom, at.path) : null, why: null }
 }
 
 /** The `project` argument both tools take, described once. */
@@ -97,7 +111,7 @@ const PROJECT = {
  * ------------------------------------------------------------------ */
 
 interface ToolCall {
-  (args: Record<string, unknown>): string
+  (args: Record<string, unknown>, project: string): string
 }
 
 /**
@@ -120,9 +134,7 @@ const TOOLS: Record<string, { description: string; schema: object; run: ToolCall
       properties: { project: PROJECT, epic: { type: 'string', description: 'e.g. thesis' } },
       required: ['project'],
     },
-    run(args) {
-      const project = projectIn(doorContext(args).project)
-      if (project === null) return NOWHERE
+    run(args, project) {
       const epic = str(doorContext(args).epic, MAX_SLUG)
       if (!epic) {
         const all = list(project)
@@ -157,9 +169,7 @@ const TOOLS: Record<string, { description: string; schema: object; run: ToolCall
       properties: { project: PROJECT, epic: { type: 'string' } },
       required: ['project', 'epic'],
     },
-    run(args) {
-      const project = projectIn(doorContext(args).project)
-      if (project === null) return NOWHERE
+    run(args, project) {
       const epic = str(doorContext(args).epic, MAX_SLUG)
       if (!isEpic(epic)) return 'that is not an epic name'
       const found = readCitations(epic, project)
@@ -195,7 +205,7 @@ interface Rpc {
   params?: Record<string, unknown>
 }
 
-function mcp(request: Rpc): Reply {
+async function mcp(request: Rpc): Promise<Reply> {
   const { id, method } = request
   /* A notification has no id and gets no answer, which is what the spec says
      and what a client that sent one is waiting for — which is nothing. */
@@ -230,7 +240,11 @@ function mcp(request: Rpc): Reply {
       return { status: 200, body: { jsonrpc: '2.0', id, error: { code: -32602, message: `no tool "${name}"` } } }
     }
     const args = (request.params?.arguments as Record<string, unknown> | undefined) ?? {}
-    return result({ content: [{ type: 'text', text: tool.run(args) }] })
+    const at = await projectIn(doorContext(args).project)
+    if (at.path === null) return result({ content: [{ type: 'text', text: at.why }] })
+    const content = [{ type: 'text', text: tool.run(args, at.path) }]
+    if (at.note) content.push({ type: 'text', text: at.note })
+    return result({ content })
   }
 
   return { status: 200, body: { jsonrpc: '2.0', id, error: { code: -32601, message: `no method "${method}"` } } }
@@ -243,12 +257,12 @@ function mcp(request: Rpc): Reply {
  * which is how the page, the client module and Vite's own hot-reload socket
  * keep working without being enumerated here.
  */
-export function answer(
+export async function answer(
   method: string,
   path: string,
   query: URLSearchParams,
   body: Record<string, unknown> | null,
-): Reply | null {
+): Promise<Reply | null> {
   if (path === '/healthz') return ok({ ok: true, id: ID, version: VERSION })
 
   if (path === '/mcp') {
@@ -256,11 +270,12 @@ export function answer(
     if (!body || typeof body.method !== 'string') {
       return { status: 400, body: { jsonrpc: '2.0', id: null, error: { code: -32600, message: 'not a request' } } }
     }
-    return mcp(body as unknown as Rpc)
+    return await mcp(body as unknown as Rpc)
   }
 
   if (path === '/api/documents' && method === 'GET') {
-    const project = projectIn(query.get('project'))
+    const at = await projectIn(query.get('project'))
+    const project = at.path
     /*
      * `nowhere` and `documents` are separate fields rather than one empty
      * list, because "there are no documents in this project" and "there is no
@@ -271,7 +286,9 @@ export function answer(
     return ok({
       ok: true,
       nowhere: project === null,
-      documents: list(project),
+      ...(at.why !== null ? { error: at.why } : {}),
+      ...(at.note ? { note: at.note } : {}),
+      documents: project === null ? [] : list(project),
     })
   }
 
@@ -281,16 +298,16 @@ export function answer(
        distinguished "no such document" from "not an epic name" would be a way
        to enumerate what is on this disk. */
     if (!isEpic(epic)) return bad('that is not an epic name')
-    const project = projectIn(query.get('project'))
-    if (project === null) return { status: 503, body: { ok: false, error: NOWHERE, nowhere: true } }
-    const found = readCitations(epic, project)
+    const at = await projectIn(query.get('project'))
+    if (at.path === null) return { status: 503, body: { ok: false, error: at.why, nowhere: true } }
+    const found = readCitations(epic, at.path)
     /* An epic with no document is an ANSWER, not a failure: the page asks about every epic the canvas
        opens and draws its own sentence for this one. A 404 put a red line in the console of every
        canvas that opened such an epic, for nothing that had gone wrong. So it is `ok: false` under 200
        with `missing: true` (as Paper's `/api/paper` does), and the statuses are kept for what IS
        wrong: no project (503), a name that is not an epic's (400). */
     if (!found) return ok({ ok: false, missing: true, error: `no document for "${epic}" in this project` })
-    return ok({ ok: true, citations: found })
+    return ok({ ok: true, citations: found, ...(at.note ? { note: at.note } : {}) })
   }
 
   /* An unknown path under `/api/` is ours to refuse rather than Vite's to try
