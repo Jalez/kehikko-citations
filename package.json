@@ -1,6 +1,6 @@
 {
   "name": "kehikko-citations",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "description": "The academic references a document cites, beside the document: every entry in its .bib, which the prose actually names, and which citations name nothing. An app: a page, a reader over the .bib and the .tex, and an MCP door.",
