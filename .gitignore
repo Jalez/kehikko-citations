@@ -19,3 +19,8 @@ dist
 # sitting in today. That is the whole of what "an app" means here: the directory
 # can be copied to another machine, run, and be somebody's checklist.
 data
+
+# Written by `build.ts` for the length of a build and taken away after. Left
+# behind by a killed build, it would be what Vite answers at `/`, with no
+# ticket in it.
+/index.html
