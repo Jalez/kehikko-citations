@@ -7,6 +7,7 @@ import { defineConfig, type Plugin } from 'vite'
 
 import { BUILD, MANIFEST, answer } from './doors.ts'
 import { ID, PREFERRED_PORT } from './manifest.ts'
+import { SAYS } from './says.ts'
 
 /**
  * Say at startup where documents come from: there is no directory to point this app at any more,
@@ -17,11 +18,7 @@ function says(): Plugin {
     name: 'citations-says',
     apply: 'serve',
     configureServer(server) {
-      server.config.logger.info(
-        'citations: documents come from the open project — <project>/.kehikot/<folder>/<epic>/main.tex. '
-          + 'KEHIKKO_PAPERS_DIR and KEHIKKO_THESIS_DIR are '
-          + 'no longer read and are ignored if still set.',
-      )
+      server.config.logger.info(SAYS)
     },
   }
 }
@@ -45,8 +42,8 @@ function says(): Plugin {
  * - No alias for `kehikot-module-protocol`: it resolves through its exports, as the host's does.
  *   The `@` alias points at `src`, which is what shadcn's generated components import through.
  * - Tailwind is configured in `src/index.css`; there is no `tailwind.config.js`.
- * - No `index.html` and no `build` script: the page is generated per request, so `vite build` has
- *   no entry to start from. `build.outDir` describes where a build would go if this grew one.
+ * - No `index.html` of its own: the page is generated per request, so `build.ts` writes the
+ *   protocol's `pageDocument` to one for the length of a build (`bun run build`, served by `serve.ts`).
  * - `base: './'`, because a host frames this page at whatever address it wrote down.
  */
 export default defineConfig({
