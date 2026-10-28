@@ -141,7 +141,10 @@ export const MANIFEST: Manifest = manifestSchema.parse({
     'compile to a "?" in the PDF and are yours to fix; uncited entries are the author\'s judgement ' +
     'and are not yours to delete. Edit the .bib and the .tex on disk — this module only reads.',
   entry: '/app',
-  modes: [{ id: 'citations', label: 'Citations', scope: 'epic' }],
+  /* What its content belongs to (protocol 2.29.0): one mode per scope, the default first. */
+  modes: [
+    { id: 'citations', label: 'Citations', scope: 'epic', scopeSays: 'the bibliography of the open epic’s paper' },
+  ],
   mcp: {
     url: '/mcp',
     transport: 'http',
