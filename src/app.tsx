@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { footerDraws } from 'kehikot-module-protocol'
 import { ask } from 'kehikot-module-protocol/client'
 import {
   Cover,
@@ -14,6 +15,7 @@ import {
 import { ID } from '../manifest.ts'
 import type { Brief, BrokenRow, CitationRow, Citations } from '../store.ts'
 import { NOUN, anchorOf, inHand } from './live/focus.ts'
+import { FOOT, footerItems } from './live/footer.ts'
 import { reading, writing, type Kept } from './live/keep.ts'
 import { DEFAULT_ORDER, ORDER_LABELS, order, type Ordering } from './live/order.ts'
 import { EVERYTHING, narrowing, sift, type Sifting } from './live/sift.ts'
@@ -81,7 +83,7 @@ type Sight =
 export function App() {
   /* Counts the presses a host sent: a host that sends one draws the header, and this page need not. */
   const [pressed, setPressed] = useState(headerDrawn)
-  const press = useRef<(press: { item: string; value?: string | boolean }) => string | void>(() => 'Nothing is open here.')
+  const press = useRef<(press: { item: string; value?: string | boolean; place?: 'header' | 'footer'; text?: string }) => string | void>(() => 'Nothing is open here.')
   const [epics, setEpics] = useState<string[] | null>(null)
   const host = useHost<Kept>(
     ID,
@@ -110,7 +112,7 @@ export function App() {
     },
     { kept: KEPT },
   )
-  const { where, epic, parts, kept, remember, projectPath: project, header, drawsHeader } = host
+  const { where, epic, parts, kept, remember, projectPath: project, header, drawsHeader, footer, drawsFooter, footerKinds } = host
   /* How this page's own server last answered: `down` when nothing did, `stale` when it is another process now. */
   const server = useServerStanding()
   const [documents, setDocuments] = useState<Brief[]>([])
@@ -261,7 +263,40 @@ export function App() {
   }, [header, itemsKey])
   useEffect(() => () => header([]), [header])
 
-  press.current = ({ item, value }) => {
+  /* ---- The footer: what is going on now, in the container's bottom row --- */
+  /*
+   * Declared only to a host that draws it; to any other host nothing, and the page draws its own
+   * lines as before. The search and its count move into it only where the host draws a field.
+   */
+  const footed = where === 'hosted' && drawsFooter === true
+  const searchFooted = footed && footerDraws({ footer: drawsFooter, footerKinds }, 'input')
+  const listed = sight.at === 'read' && sight.citations.bib !== null
+  const footerKey = footed
+    ? JSON.stringify(
+        footerItems({
+          document: sight.at === 'read' ? showing : null,
+          bib: sight.at === 'read' ? sight.citations.bib : null,
+          sift: searchFooted && listed ? { query: sifting.query, shown: shown.length, total: rows.length, narrowed: narrowing(sifting) } : null,
+          broken: sight.at === 'read' ? broken.shown.length : 0,
+          problems: sight.at === 'read' ? sight.citations.problems.length : 0,
+          unlisted: epics && epics.length > documents.length ? epics.length - documents.length : 0,
+        }),
+      )
+    : null
+  useEffect(() => {
+    if (footerKey !== null) footer(JSON.parse(footerKey))
+  }, [footer, footerKey])
+  /* A footer this page declared is taken away with it, and when the host stops drawing one. */
+  useEffect(() => {
+    if (footed) return () => footer([])
+  }, [footer, footed])
+
+  press.current = ({ item, value, place, text }) => {
+    if (place === 'footer') {
+      if (item === FOOT.SEARCH && text !== undefined) return void setSifting((was) => ({ ...was, query: text }))
+      if (item === FOOT.EVERYTHING) return void setSifting(EVERYTHING)
+      return `Nothing in this footer is called ${item}.`
+    }
     if (typeof value !== 'string') return `${item} takes one of its options.`
     if (item === 'document') {
       const at = value.startsWith('d') ? Number(value.slice(1)) : -1
@@ -304,8 +339,9 @@ export function App() {
      */
     <div className="@container relative flex h-full min-w-0 flex-col bg-background text-foreground">
       {fallback && items.length ? <HeaderFallback items={items} onPress={(p) => void press.current(p)} className="absolute top-1 right-1" /> : null}
-      <Head sight={sight} epics={epics} documents={documents} showing={showing} padded={fallback && items.length > 0} />
-      {sight.at === 'read' && sight.citations.bib !== null && (
+      {/* With a footer, the footer names the document and the .bib, and the epics without one. */}
+      {!footed && <Head sight={sight} epics={epics} documents={documents} showing={showing} padded={fallback && items.length > 0} />}
+      {listed && !searchFooted && (
         <Toolbar
           sifting={sifting}
           onSift={setSifting}

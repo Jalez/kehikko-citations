@@ -8,8 +8,9 @@ import { type Standing } from './live/sift.ts'
  * What this page declares for the container's header (`kehikot.header`).
  *
  * The host draws these in its View menu, so the page spends no row on the standing pills, the
- * order select or the document picker. The search stays in the page: the header carries no free
- * text. The count ("12 of 37") stays beside it, because a filter is only allowed to hide a row
+ * order select or the document picker. The search is not here: the header carries no free text.
+ * It stays in the page, or goes to the footer where the host draws a field there (`live/footer.ts`),
+ * and the count ("12 of 37") goes wherever it goes, because a filter is only allowed to hide a row
  * with the count of what it hid on screen (`live/sift.ts`).
  *
  * A pure function of what the page has read. It is declared again only when its JSON differs: the
