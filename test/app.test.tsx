@@ -341,26 +341,41 @@ describe('the not-ready moments, each as the one shared cover', () => {
 })
 
 describe('the filter the host keeps', () => {
-  test('what was kept is applied on the greeting, and the defaults are not written over it first', async () => {
+  test('what was kept is applied on the greeting, nothing is written until somebody changes it, and another kehikko brings its own', async () => {
     serve()
-    const sent: unknown[] = []
+    const sent: { state: unknown; kehikko?: number }[] = []
     const hear = (event: MessageEvent) => {
-      const data = event.data as { type?: string; method?: string; params?: { state?: string } }
-      if (data?.type === 'kehikot.request' && data.method === 'state.set') sent.push(KEPT.read(data.params?.state ?? null))
+      const data = event.data as { type?: string; method?: string; params?: { state?: string; kehikko?: number } }
+      if (data?.type === 'kehikot.request' && data.method === 'state.set') sent.push({ state: KEPT.read(data.params?.state ?? null), kehikko: data.params?.kehikko })
     }
     window.addEventListener('message', hear)
-    const saved = { sifting: { query: 'zzz', standing: 'uncited' as const }, ordering: 'key' as const }
-    render(<App />)
-    await settle()
-    /* Not greeted: nothing is written, least of all the defaults. */
-    expect(sent).toHaveLength(0)
-    await greet({ epic: 'a' }, KEPT.write(saved))
-    await settle(60)
-    /* Whatever is sent back after the greeting is what was kept, never the defaults over it. */
-    expect(sent.length).toBeGreaterThan(0)
-    for (const one of sent) expect(one).toEqual(saved)
-    expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('zzz')
-    window.removeEventListener('message', hear)
+    try {
+      const saved = { sifting: { query: 'zzz', standing: 'uncited' as const }, ordering: 'key' as const }
+      render(<App />)
+      await settle()
+      /* Not greeted: nothing is written, least of all the defaults. */
+      expect(sent).toHaveLength(0)
+      await greet({ epic: 'a', kehikko: { id: 1, name: 'One' }, kept: KEPT.write(saved) })
+      await settle(400)
+      /* Arriving writes nothing: the defaults are never written over what was kept. */
+      expect(sent).toHaveLength(0)
+      const search = () => (screen.getByRole('searchbox') as HTMLInputElement).value
+      expect(search()).toBe('zzz')
+
+      /* A change is written for this kehikko, over everything else it kept. */
+      fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'yyy' } })
+      expect(search()).toBe('yyy')
+      await settle(400)
+      expect(sent).toEqual([{ state: { ...saved, sifting: { ...saved.sifting, query: 'yyy' } }, kehikko: 1 }])
+
+      /* Another kehikko shows its own filter, and one that kept nothing shows the defaults. */
+      await move({ kehikko: { id: 2, name: 'Two' }, kept: KEPT.write({ sifting: { query: 'two', standing: 'all' }, ordering: 'key' }) })
+      expect(search()).toBe('two')
+      await move({ kehikko: { id: 3, name: 'Three' }, kept: null })
+      expect(search()).toBe('')
+    } finally {
+      window.removeEventListener('message', hear)
+    }
   })
 
   test('the kept string is read strictly', () => {

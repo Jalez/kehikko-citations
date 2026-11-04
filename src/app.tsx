@@ -8,6 +8,7 @@ import {
   useFocus,
   useHost,
   useServerStanding,
+  KEEP_AFTER_MS,
   type CoverState,
   type KeptCodec,
 } from 'kehikot-module-protocol/client/react'
@@ -46,7 +47,9 @@ import { cn } from '@/lib/utils.ts'
  * ## What it takes from a host
  *
  * The open project and epic, the epic's parts, the theme, and the filter it asked the host to
- * keep — all through the protocol's `useHost`. It asks the host for the epic list once, on the
+ * keep — all through the protocol's `useHost`. The filter is kept for this container (this module
+ * on this kehikko) and read from `kept` on every render, never copied into state: the same page
+ * serves every kehikko, and moving to another one brings that one's filter. It asks the host for the epic list once, on the
  * greeting, and draws one extra line with the answer. Documents are read from the project the host
  * names, so with no host there is nothing to read and the page says that nothing is framing it.
  *
@@ -118,22 +121,22 @@ export function App() {
   const [documents, setDocuments] = useState<Brief[]>([])
   const [picked, setPicked] = useState<string | null>(null)
   const [sight, setSight] = useState<Sight>({ at: 'waiting' })
-  const [sifting, setSifting] = useState<Sifting>(EVERYTHING)
-  const [ordering, setOrdering] = useState<Ordering>(DEFAULT_ORDER)
+  /* The filter and the order are what the host keeps for this kehikko, read on every render. */
+  const sifting = kept?.sifting ?? EVERYTHING
+  const ordering = kept?.ordering ?? DEFAULT_ORDER
+  /*
+   * Written over the newest kept value, after a short pause so typing a query sends one write.
+   * Nothing is written until somebody changes something: the defaults are never written over
+   * what a kehikko kept, because nothing here writes on arrival.
+   */
+  const keep = (change: (was: Kept) => Kept) =>
+    remember(change(host.read().kept ?? { sifting: EVERYTHING, ordering: DEFAULT_ORDER }), KEEP_AFTER_MS)
+  const setSifting = (next: Sifting | ((was: Sifting) => Sifting)) =>
+    keep((was) => ({ ...was, sifting: typeof next === 'function' ? next(was.sifting) : next }))
+  const setOrdering = (next: Ordering) => keep((was) => ({ ...was, ordering: next }))
   const [openKey, setOpenKey] = useState<string | null>(null)
   /** Bumped by Try again: both reads are asked again. */
   const [again, setAgain] = useState(0)
-  /*
-   * Whether the kept filter has been applied yet.
-   *
-   * Without this the page writes its own defaults back to the host on the first
-   * render — before the greeting has arrived with what was saved — and a
-   * setting is lost every single time the container loads. It turns true on the
-   * greeting, kept filter or none, and never before it.
-   */
-  const [restored, setRestored] = useState(false)
-  /** The value this page last handed to `remember`, so its own echo is not applied as the host's. */
-  const mine = useRef<Kept | null>(null)
 
   /*
    * A pick holds only until the canvas moves: another epic, or another project.
@@ -148,24 +151,6 @@ export function App() {
 
   /** Which document is on screen: what the host says, unless somebody picked. */
   const showing = picked ?? epic
-
-  useEffect(() => {
-    if (where !== 'hosted') return
-    if (kept && kept !== mine.current) {
-      setSifting(kept.sifting)
-      setOrdering(kept.ordering)
-    }
-    setRestored(true)
-  }, [where, kept])
-
-  /* Written back only after the restore, which is only after a greeting — an unframed page has
-     nobody to ask. */
-  useEffect(() => {
-    if (!restored) return
-    const next = { sifting, ordering }
-    mine.current = next
-    remember(next)
-  }, [restored, sifting, ordering, remember])
 
   useEffect(() => {
     /* No project, no documents — and nothing to ask: the cover says which of the reasons it is. */
