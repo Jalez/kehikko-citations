@@ -399,3 +399,68 @@ test('the standing and the order are pressed through the same menu a host would 
   await waitFor(() => expect(document.body.textContent).toContain('0 of 1'))
   expect(document.body.textContent).toContain('show everything')
 })
+
+describe('the footer the host draws', () => {
+  type Sent = { type: string; items?: { id: string; kind: string; text?: string; value?: string }[]; id?: string; ok?: boolean }
+  const sent: Sent[] = []
+  const listen = (event: MessageEvent) => {
+    if (event.data && typeof event.data === 'object' && 'type' in event.data) sent.push(event.data)
+  }
+  beforeEach(() => {
+    sent.length = 0
+    window.addEventListener('message', listen)
+  })
+  afterEach(() => window.removeEventListener('message', listen))
+  const footer = () => sent.filter((one) => one.type === 'kehikot.footer').at(-1)?.items ?? null
+  const item = (id: string) => footer()?.find((one) => one.id === id)
+  /** Greet as a host that draws the header and the footer, with the kinds it says it draws. */
+  async function footed(facts: Record<string, unknown>) {
+    serve()
+    render(<App />)
+    said = { ...CONTEXT, epic: 'a' }
+    window.postMessage({ type: 'kehikot.hello', protocol: 2, session: 's', state: null, context: said, header: true, ...facts }, '*')
+    await screen.findByText('Title of a')
+    await settle(60)
+  }
+  let n = 0
+  const press = async (item: string, extra: Record<string, unknown> = {}) => {
+    n += 1
+    window.postMessage({ type: 'kehikot.press', protocol: 2, id: `foot-${n}`, item, place: 'footer', ...extra }, '*')
+    await settle(60)
+    return sent.find((one) => one.type === 'kehikot.pressed' && one.id === `foot-${n}`)
+  }
+
+  test('a host that draws a field is told the document, the search and its count, and the page draws none of them', async () => {
+    await footed({ footer: true, footerKinds: ['text', 'meter', 'switch', 'toggle', 'go', 'run', 'input'] })
+    expect(footer()?.map((one) => `${one.kind}:${one.id}`)).toEqual(['text:document', 'input:search', 'text:count'])
+    expect(item('document')?.text).toBe('a · refs.bib')
+    expect(item('count')?.text).toBe('1 of 1')
+    expect(screen.queryByLabelText('Filter the bibliography')).toBeNull()
+    expect(screen.queryByRole('heading')).toBeNull()
+  })
+
+  test('a search typed into the footer narrows the list, and Show everything beside the count puts it back', async () => {
+    await footed({ footer: true, footerKinds: ['text', 'run', 'input'] })
+    expect(await press('search', { text: 'zzz' })).toMatchObject({ ok: true })
+    await waitFor(() => expect(item('count')?.text).toBe('0 of 1'))
+    expect(item('search')?.value).toBe('zzz')
+    expect(item('everything')?.kind).toBe('run')
+    expect(await press('everything')).toMatchObject({ ok: true })
+    await waitFor(() => expect(item('count')?.text).toBe('1 of 1'))
+    expect(item('everything')).toBeUndefined()
+  })
+
+  test('a host that draws a footer but no field gets no search: the page keeps it, with the count beside it', async () => {
+    await footed({ footer: true })
+    expect(footer()?.map((one) => one.id)).toEqual(['document'])
+    expect(screen.getByLabelText('Filter the bibliography')).toBeTruthy()
+    expect(document.body.textContent).toContain('1 of 1')
+  })
+
+  test('a host that does not draw one is told nothing, and the page draws its lines as before', async () => {
+    await footed({ footer: false })
+    expect(footer()).toBeNull()
+    expect(screen.getByRole('heading').textContent).toContain('a')
+    expect(screen.getByLabelText('Filter the bibliography')).toBeTruthy()
+  })
+})
