@@ -17,8 +17,9 @@ import { EVERYTHING, type Sifting, type Standing } from './sift.ts'
  * container; `state.set` is the protocol's answer and is the one that keeps working
  * whatever the framing turns out to be.
  *
- * The host keeps one string for one module and hands the same string back in
- * the greeting, having never looked inside it. That it never looks inside is
+ * The host keeps one string for one container — this module on one kehikko —
+ * and hands the same string back in the greeting, and again when the person
+ * moves to another kehikko, having never looked inside it. That it never looks inside is
  * the part this file has to honour. The string is JSON because JSON is what a
  * program reads, not because the host knows it is JSON — nothing on the other
  * side parses this, validates it, or would notice if it changed shape tomorrow.
@@ -46,7 +47,7 @@ import { EVERYTHING, type Sifting, type Standing } from './sift.ts'
  * every reload is a setting people stop using.
  *
  * The query is arguable, because it is the strongest filter here and the state
- * is kept per MODULE rather than per document: a phrase typed while reading one
+ * is kept per container (this module on one kehikko) rather than per document: a phrase typed while reading one
  * document comes back over another, where it may match nothing, and the reader
  * sees a bibliography that looks empty. It is kept anyway, for References'
  * reason — this page already carries the two things that make that survivable
