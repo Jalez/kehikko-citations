@@ -22,7 +22,7 @@ import { DEFAULT_ORDER, ORDER_LABELS, order, type Ordering } from './live/order.
 import { EVERYTHING, narrowing, sift, type Sifting } from './live/sift.ts'
 import { BrokenList, Row } from './view/citation-row.tsx'
 import { fallbackShows, HeaderFallback, headerDrawn, rememberHeaderDrawn } from './view/header-fallback.tsx'
-import { headerOf } from './header.ts'
+import { headerOf, NO_DOCUMENT } from './header.ts'
 import { Toolbar } from './view/toolbar.tsx'
 import { cn } from '@/lib/utils.ts'
 
@@ -113,9 +113,10 @@ export function App() {
           })
       },
     },
-    { kept: KEPT },
+    /* The kept view (protocol 2.70.0) keeps the filter and the order; not the document, which is a pick that holds only until the canvas moves. */
+    { kept: KEPT, keepView: { except: ['document'] } },
   )
-  const { where, epic, parts, kept, remember, projectPath: project, header, drawsHeader, footer, drawsFooter, footerKinds } = host
+  const { where, epic, parts, kept, remember, projectPath: project, header, drawsHeader, footer, drawsFooter, footerKinds, ready } = host
   /* How this page's own server last answered: `down` when nothing did, `stale` when it is another process now. */
   const server = useServerStanding()
   const [documents, setDocuments] = useState<Brief[]>([])
@@ -212,6 +213,13 @@ export function App() {
             ? 'no-project'
             : null)
 
+  /* The host's cover is held until this page is drawn (protocol 2.70.0): once the first read has come back, or
+     there is nothing to read and a cover says why. */
+  const drawn = whole === null ? sight.at !== 'waiting' : whole !== 'waiting'
+  useEffect(() => {
+    if (drawn) ready()
+  }, [drawn, ready])
+
   const rows = sight.at === 'read' ? sight.citations.rows : NO_ROWS
   const brokenRows = sight.at === 'read' ? sight.citations.broken : NO_BROKEN
   /*
@@ -284,6 +292,7 @@ export function App() {
     }
     if (typeof value !== 'string') return `${item} takes one of its options.`
     if (item === 'document') {
+      if (value === NO_DOCUMENT) return 'No document is open; pick one of the others.'
       const at = value.startsWith('d') ? Number(value.slice(1)) : -1
       const one = documents[at]
       if (!one) return 'That document is not among the ones listed.'
@@ -334,7 +343,7 @@ export function App() {
           total={rows.length}
         />
       )}
-      <div className={cn('min-w-0 flex-1 overflow-y-auto', part && 'flex flex-col')}>
+      <div data-kehikot-scroll className={cn('min-w-0 flex-1 overflow-y-auto', part && 'flex flex-col')}>
         {part ? (
           <Cover
             state={part}

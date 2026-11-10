@@ -1,0 +1,107 @@
+[
+  {
+    "name": "a bibliography",
+    "header": [
+      {
+        "kind": "switch",
+        "id": "document",
+        "label": "Document",
+        "icon": "library",
+        "agents": true,
+        "value": "d0",
+        "options": [
+          {
+            "id": "d0",
+            "label": "thesis"
+          },
+          {
+            "id": "d1",
+            "label": "notes"
+          }
+        ]
+      },
+      {
+        "kind": "switch",
+        "id": "standing",
+        "label": "Show",
+        "icon": "filter",
+        "agents": true,
+        "value": "all",
+        "options": [
+          {
+            "id": "all",
+            "label": "All"
+          },
+          {
+            "id": "cited",
+            "label": "Cited"
+          },
+          {
+            "id": "uncited",
+            "label": "Uncited"
+          }
+        ]
+      },
+      {
+        "kind": "switch",
+        "id": "order",
+        "label": "Order",
+        "icon": "arrow-down-up",
+        "agents": true,
+        "value": "file",
+        "options": [
+          {
+            "id": "file",
+            "label": "In the .bib"
+          },
+          {
+            "id": "author",
+            "label": "Author"
+          },
+          {
+            "id": "year",
+            "label": "Newest"
+          },
+          {
+            "id": "cited",
+            "label": "Most cited"
+          },
+          {
+            "id": "key",
+            "label": "Key"
+          }
+        ]
+      }
+    ],
+    "footer": [
+      {
+        "kind": "text",
+        "id": "document",
+        "text": "thesis · refs.bib",
+        "tooltip": "thesis, citing from refs.bib"
+      },
+      {
+        "kind": "input",
+        "id": "search",
+        "label": "Filter the bibliography",
+        "value": "",
+        "placeholder": "author, title, key, year",
+        "grow": true
+      },
+      {
+        "kind": "text",
+        "id": "count",
+        "text": "12 of 37",
+        "tooltip": "12 of the 37 entries shown"
+      },
+      {
+        "kind": "text",
+        "id": "broken",
+        "text": "1 citation names nothing",
+        "level": "critical",
+        "align": "end",
+        "tooltip": "1 citation names nothing in the .bib: listed above the entries."
+      }
+    ]
+  }
+]

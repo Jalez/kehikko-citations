@@ -21,6 +21,9 @@ import { type Standing } from './live/sift.ts'
  */
 export const STANDING_LABELS: Record<Standing, string> = { all: 'All', cited: 'Cited', uncited: 'Uncited' }
 
+/** The document switch's option when none of the listed documents is on screen. */
+export const NO_DOCUMENT = 'none'
+
 export interface HeaderState {
   documents: readonly Pick<Brief, 'epic' | 'title'>[]
   /** Which document is on screen. */
@@ -36,12 +39,21 @@ export function headerOf(state: HeaderState): HeaderItemInput[] {
   const docs = state.documents.slice(0, LIMITS.HEADER_OPTIONS)
   if (docs.length > 1) {
     const at = docs.findIndex((one) => one.epic === state.showing)
-    const options = docs.map((one, i) => ({ id: `d${i}`, label: cut(one.epic) }))
-    /* A switch has a value that is one of its options; where none is on screen, it is a jump. */
+    const named = docs.map((one, i) => ({ id: `d${i}`, label: cut(one.epic) }))
+    /* Which document is on screen is held state, so it is a switch always. When none of the listed ones is on screen,
+       the switch rests on a first option that says so, rather than on a document that is not. */
     items.push(
       at >= 0
-        ? { kind: 'switch', id: 'document', label: 'Document', icon: 'library', agents: true, value: `d${at}`, options }
-        : { kind: 'go', id: 'document', label: 'Document', icon: 'library', agents: true, options },
+        ? { kind: 'switch', id: 'document', label: 'Document', icon: 'library', agents: true, value: `d${at}`, options: named }
+        : {
+            kind: 'switch',
+            id: 'document',
+            label: 'Document',
+            icon: 'library',
+            agents: true,
+            value: NO_DOCUMENT,
+            options: [{ id: NO_DOCUMENT, label: 'No document open' }, ...named.slice(0, LIMITS.HEADER_OPTIONS - 1)],
+          },
     )
   }
   if (state.list) {

@@ -1,6 +1,3 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-
 /**
  * Imported for its side effect, and it belongs in the ENTRY rather than beside
  * the `connect` call.
@@ -18,6 +15,8 @@ import { createRoot } from 'react-dom/client'
  * bundler's clothes.
  */
 import 'kehikot-module-protocol/client'
+
+import { mountPage } from 'kehikot-module-protocol/client/mount'
 
 import { App } from './app.tsx'
 import './index.css'
@@ -38,8 +37,4 @@ const root = document.getElementById('root')
 if (!root) throw new Error('the page has no #root to mount into')
 root.classList.add('h-full')
 
-createRoot(root).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+mountPage(root, <App />)
