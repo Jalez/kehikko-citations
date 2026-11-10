@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
-import { mailbox, resetServerStanding } from 'kehikot-module-protocol/client'
+import { mailbox, resetServerStanding, unwrapKept } from 'kehikot-module-protocol/client'
 
 import { App, KEPT } from '../src/app.tsx'
 
@@ -346,7 +346,7 @@ describe('the filter the host keeps', () => {
     const sent: { state: unknown; kehikko?: number }[] = []
     const hear = (event: MessageEvent) => {
       const data = event.data as { type?: string; method?: string; params?: { state?: string; kehikko?: number } }
-      if (data?.type === 'kehikot.request' && data.method === 'state.set') sent.push({ state: KEPT.read(data.params?.state ?? null), kehikko: data.params?.kehikko })
+      if (data?.type === 'kehikot.request' && data.method === 'state.set') sent.push({ state: KEPT.read(unwrapKept(data.params?.state ?? null).state), kehikko: data.params?.kehikko })
     }
     window.addEventListener('message', hear)
     try {
@@ -357,8 +357,10 @@ describe('the filter the host keeps', () => {
       expect(sent).toHaveLength(0)
       await greet({ epic: 'a', kehikko: { id: 1, name: 'One' }, kept: KEPT.write(saved) })
       await settle(400)
-      /* Arriving writes nothing: the defaults are never written over what was kept. */
-      expect(sent).toHaveLength(0)
+      /* Arriving writes nothing of the page's own: the defaults are never written over what was kept. (The kept
+         view, protocol 2.70.0, may write the view beside it; the page's own string goes through as it was.) */
+      expect(sent.every((one) => JSON.stringify(one.state) === JSON.stringify(saved))).toBe(true)
+      sent.length = 0
       const search = () => (screen.getByRole('searchbox') as HTMLInputElement).value
       expect(search()).toBe('zzz')
 
@@ -366,7 +368,7 @@ describe('the filter the host keeps', () => {
       fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'yyy' } })
       expect(search()).toBe('yyy')
       await settle(400)
-      expect(sent).toEqual([{ state: { ...saved, sifting: { ...saved.sifting, query: 'yyy' } }, kehikko: 1 }])
+      expect(sent.at(-1)).toEqual({ state: { ...saved, sifting: { ...saved.sifting, query: 'yyy' } }, kehikko: 1 })
 
       /* Another kehikko shows its own filter, and one that kept nothing shows the defaults. */
       await move({ kehikko: { id: 2, name: 'Two' }, kept: KEPT.write({ sifting: { query: 'two', standing: 'all' }, ordering: 'key' }) })

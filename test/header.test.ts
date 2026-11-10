@@ -26,8 +26,11 @@ describe('the header this page declares', () => {
     expect(headerOf({ ...base, list: null }).map((one) => one.id)).toEqual(['document'])
   })
 
-  test('a document that is not among the listed ones makes the picker a jump', () => {
-    expect(headerOf({ ...base, showing: 'elsewhere' })[0]).toMatchObject({ kind: 'go', id: 'document' })
+  test('a document that is not among the listed ones leaves the picker a switch, resting on "No document open"', () => {
+    const one = headerOf({ ...base, showing: 'elsewhere' })[0] as { kind: string; value: string; options: { id: string }[] }
+    expect(one).toMatchObject({ kind: 'switch', id: 'document', value: 'none' })
+    expect(one.options.map((o) => o.id)).toEqual(['none', ...docs.map((_, i) => `d${i}`)])
+    expect(() => headerItemsSchema.parse([one])).not.toThrow()
   })
 
   test('is the same list whatever is typed: the query is not in it', () => {
