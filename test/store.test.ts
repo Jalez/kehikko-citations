@@ -300,3 +300,35 @@ describe('the two fences', () => {
     expect(readCitations('thesis', projectOf(link))!.rows).toHaveLength(3)
   })
 })
+
+describe('where the module that keeps documents says they are', () => {
+  /* A descriptor as the host would hand it: any folder, any main file, nothing spelled in the code. */
+  const kept = join(root, 'kept')
+  const manuscript = join(kept, 'manuscripts', 'essay', 'src')
+  mkdirSync(manuscript, { recursive: true })
+  writeFileSync(join(manuscript, 'book.tex'), '\\title{Kept}\n\\addbibresource{refs.bib}\n\\begin{document}\\autocite{one}\\input{part}\\end{document}')
+  writeFileSync(join(manuscript, 'part.tex'), '\\autocite{two}')
+  writeFileSync(join(manuscript, 'refs.bib'), '@misc{one, title = {One}}\n@misc{two, title = {Two}}')
+  /* A main.tex in a .kehikot/ shelf that the layout does not name is not read while a layout is given. */
+  mkdirSync(join(kept, '.kehikot', 'stray', 'other'), { recursive: true })
+  writeFileSync(join(kept, '.kehikot', 'stray', 'other', 'main.tex'), '\\title{Stray}')
+  const layout = { root: 'manuscripts/{epic}/src', main: 'book.tex' }
+
+  test('documents are the epic folders holding the main file the descriptor names', () => {
+    expect(roots(kept, layout).map((r) => [r.epic, r.main])).toEqual([['essay', 'book.tex']])
+    expect(list(kept, layout)).toEqual([{ epic: 'essay', title: 'Kept', entries: 2 }])
+    const read = readCitations('essay', kept, layout)!
+    expect(read.dir).toBe('manuscripts/essay/src')
+    expect(read.files).toEqual(['book.tex', 'part.tex'])
+    expect(read.rows.map((r) => [r.key, r.times])).toEqual([['one', 1], ['two', 1]])
+  })
+
+  test('without a layout, the shelves under .kehikot/ are looked in, as before', () => {
+    expect(roots(kept).map((r) => r.epic)).toEqual(['other'])
+    expect(readCitations('essay', kept)).toBeNull()
+  })
+
+  test('a layout pointing out of the project reads nothing', () => {
+    expect(roots(kept, { root: 'manuscripts/{epic}/../../../secret', main: 'book.tex' })).toEqual([])
+  })
+})

@@ -33,12 +33,14 @@ broken citations.
 
 ## Where it reads from
 
-**The open project.** A document is a folder named for its epic with a
-`main.tex` in it, inside one of the folders the project keeps under
-`.kehikot/`: `<project>/.kehikot/<folder>/<epic>/main.tex`, with the `.bib` the
-document names beside it. Which folder is not this app's to know: it looks in
-each, in name order, and reads the first document it finds for an epic. It
-names no other program and needs none installed or running.
+**The open project.** The module that keeps a document per epic says where
+each one is (the `document.proposals` service): its epic folder and main file.
+Citations finds that module through the host (`services:read`) and never names
+it. With no such module answering, a document is a folder named for its epic
+with a `main.tex` in it, inside one of the folders the project keeps under
+`.kehikot/`: `<project>/.kehikot/<folder>/<epic>/main.tex`, the first found in
+name order. Either way the `.bib` is the one the document names, beside it, and
+nothing else needs to be installed or running.
 
 The project is the one the host says is open (`kehikot.context.projectPath`);
 the page sends it with every read, and both MCP tools take it as a required

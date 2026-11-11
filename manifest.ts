@@ -42,9 +42,14 @@ export const PREFERRED_PORT = 7930
  * - **`epics:read`.** For the gap.
  *   This app can see which epics HAVE a document with a bibliography, because
  *   it is looking at the directory; it cannot see which epics EXIST. An epic
- *   whose paper has no bibliography at all is worth putting on screen and is
+ *   whose document has no bibliography at all is worth putting on screen and is
  *   invisible from here without asking. Enrichment, drawn as enrichment:
  *   refused or unanswered, the picker is still every document in the open project.
+ * - **`services:read`.** Where each epic's document is: the module that keeps
+ *   a document per epic (`document.proposals`, 2.83.0) says, in its descriptor,
+ *   which folder and which main file. Found through the host and never named.
+ *   Unanswered, every folder under `.kehikot/` is looked in for an
+ *   `<epic>/main.tex`, as before.
  * - **`state:keep`.** How the filter and the order survive a reload. The host
  *   keeps one opaque string for this module and never reads it; the format
  *   lives entirely in `src/live/keep.ts`. This is the capability that makes the
@@ -143,7 +148,7 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   entry: '/app',
   /* What its content belongs to (protocol 2.29.0): one mode per scope, the default first. */
   modes: [
-    { id: 'citations', label: 'Citations', scope: 'epic', scopeSays: 'the bibliography of the open epic’s paper' },
+    { id: 'citations', label: 'Citations', scope: 'epic', scopeSays: 'the bibliography of the open epic’s document' },
   ],
   mcp: {
     url: '/mcp',
@@ -155,14 +160,14 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   /**
    * `reacts: ['parts']` — the list follows the parts ticked in the host's bar.
    *
-   * An entry is anchored by every file of the paper that cites it, and is in
+   * An entry is anchored by every file of the document that cites it, and is in
    * front when any one of them is a ticked part's; an entry cited nowhere has
    * no anchor and is outside every focus. See `src/live/focus.ts`.
    */
   reacts: ['parts'],
   declares: {
     protocol: `>=${PROTOCOL} <${PROTOCOL + 1}`,
-    uses: ['epics:read', 'state:keep'],
+    uses: ['epics:read', 'state:keep', 'services:read'],
     storage: true,
     prompt: false,
   },
