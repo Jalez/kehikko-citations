@@ -5,7 +5,7 @@ import { join } from 'node:path'
 
 import { toolEffect } from 'kehikot-module-protocol'
 
-import { answer } from '../doors.ts'
+import { DOCUMENTS, answer } from '../doors.ts'
 import { ID, MANIFEST } from '../manifest.ts'
 
 /**
@@ -231,11 +231,42 @@ describe('the manifest', () => {
      * tracker and fail to find — a failure nobody sees as a failure.
      */
     expect(MANIFEST.declares.uses).not.toContain('selection:set')
-    expect(MANIFEST.declares.uses).toEqual(['epics:read', 'state:keep'])
+    expect(MANIFEST.declares.uses).toEqual(['epics:read', 'state:keep', 'services:read'])
   })
 
   test('the guidance says what this module’s presence obliges, and fits', () => {
     expect(MANIFEST.guidance!.length).toBeLessThan(1024)
     expect(MANIFEST.guidance).toContain('never invent a bibliography entry')
+  })
+})
+
+describe('where the module that keeps documents says they are', () => {
+  test('the page and the tools read the epic folder its descriptor names, and fall back when it is gone', async () => {
+    const kept = join(project, 'kept', 'essay')
+    mkdirSync(kept, { recursive: true })
+    writeFileSync(join(kept, 'doc.tex'), '\\title{Kept}\n\\addbibresource{r.bib}\n\\begin{document}\\autocite{a}\\end{document}')
+    writeFileSync(join(kept, 'r.bib'), '@misc{a, title = {A}}')
+    const was = DOCUMENTS.find
+    let asked = 0
+    DOCUMENTS.find = async () => {
+      asked += 1
+      return { root: 'kept/{epic}', main: 'doc.tex' }
+    }
+    DOCUMENTS.forget()
+    try {
+      const documents = (await get('/api/documents'))?.body as { documents: { epic: string }[] }
+      expect(documents.documents.map((d) => d.epic)).toEqual(['essay'])
+      const read = (await get('/api/citations', 'epic=essay'))?.body as { ok: boolean; citations: { dir: string; files: string[] } }
+      expect(read.citations.dir.endsWith('kept/essay')).toBe(true)
+      expect(read.citations.files).toEqual(['doc.tex'])
+      /* Asked once, then remembered. */
+      expect(asked).toBe(1)
+    } finally {
+      DOCUMENTS.find = was
+      DOCUMENTS.forget()
+    }
+    const back = (await get('/api/documents'))?.body as { documents: { epic: string }[] }
+    expect(back.documents.map((d) => d.epic)).toContain('thesis')
+    expect(back.documents.map((d) => d.epic)).not.toContain('essay')
   })
 })

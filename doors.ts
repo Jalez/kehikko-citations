@@ -1,8 +1,8 @@
-import { doorContext } from 'kehikot-module-protocol'
-import { DOOR_PROJECT_SAYS, establishBuild, resolveDoorProject, type HostHasProjectOptions, type Reply } from 'kehikot-module-protocol/serve'
+import { DOCUMENT_PROPOSALS, doorContext } from 'kehikot-module-protocol'
+import { DOOR_PROJECT_SAYS, establishBuild, findService, resolveDoorProject, type HostHasProjectOptions, type Reply } from 'kehikot-module-protocol/serve'
 
 import { ID, MANIFEST, VERSION } from './manifest.ts'
-import { isEpic, list, readCitations } from './store.ts'
+import { isEpic, list, readCitations, type Layout } from './store.ts'
 
 /**
  * Every door this app answers on that is not the page itself.
@@ -74,8 +74,8 @@ const bad = (why: string, status = 400): Reply => ({ status, body: { ok: false, 
  * apart.
  */
 export const NOWHERE =
-  'No project is open, so there is nowhere to look for documents. A document lives in the project, at ' +
-  '<project>/.kehikot/<folder>/<epic>/main.tex, and this app reads ' +
+  'No project is open, so there is nowhere to look for documents. The epic’s document lives in the project, where the ' +
+  'module that keeps it says, or at <project>/.kehikot/<folder>/<epic>/main.tex, and this app reads ' +
   'it there and nowhere else. Open a project on this canvas, or pass `project` as the absolute path of the ' +
   'project folder. (KEHIKKO_PAPERS_DIR and KEHIKKO_THESIS_DIR are no longer read.)'
 
@@ -98,12 +98,48 @@ async function projectIn(value: unknown): Promise<At> {
   return { path: at.path, note: at.movedFrom ? DOOR_PROJECT_SAYS.followed(at.movedFrom, at.path) : null, why: null }
 }
 
+/**
+ * Where documents are kept, as the module that keeps them says (`document.proposals`, 2.83.0): found
+ * through the host, never named here, asked at most once every `FRESH_MS`. Null when nobody answers —
+ * no such module in use, or a host too old to say — and then `store.ts` looks in every folder under
+ * `.kehikot/`. `DOCUMENTS.find` is replaced by a test.
+ */
+const FRESH_MS = 30_000
+let layoutAt = 0
+let layoutKnown: Layout = null
+async function findLayout(): Promise<Layout> {
+  const found = await findService(DOCUMENT_PROPOSALS, {
+    module: ID,
+    timeoutMs: 2_000,
+    ...(ASK.options.env ? { env: ASK.options.env } : {}),
+    ...(ASK.options.fetch ? { fetch: ASK.options.fetch } : {}),
+  })
+  return found.ok ? { root: found.provider.descriptor.root, main: found.provider.descriptor.main } : null
+}
+export const DOCUMENTS: { find: () => Promise<Layout>; forget: () => void } = {
+  find: findLayout,
+  forget: () => {
+    layoutAt = 0
+    layoutKnown = null
+  },
+}
+async function layout(): Promise<Layout> {
+  if (Date.now() - layoutAt < FRESH_MS) return layoutKnown
+  try {
+    layoutKnown = await DOCUMENTS.find()
+  } catch {
+    layoutKnown = null
+  }
+  layoutAt = Date.now()
+  return layoutKnown
+}
+
 /** The `project` argument both tools take, described once. */
 const PROJECT = {
   type: 'string',
   description:
-    'Absolute path of the project folder — the same path a host puts in kehikot.context.projectPath. Documents are read ' +
-    'from <project>/.kehikot/<folder>/<epic>/.',
+    'Absolute path of the project folder — the same path a host puts in kehikot.context.projectPath. Each epic’s ' +
+    'document is read where the module that keeps it says, or from <project>/.kehikot/<folder>/<epic>/.',
 } as const
 
 /* ------------------------------------------------------------------ *
@@ -111,7 +147,7 @@ const PROJECT = {
  * ------------------------------------------------------------------ */
 
 interface ToolCall {
-  (args: Record<string, unknown>, project: string): string
+  (args: Record<string, unknown>, project: string, layout: Layout): string
 }
 
 /**
@@ -134,17 +170,21 @@ const TOOLS: Record<string, { description: string; schema: object; run: ToolCall
       properties: { project: PROJECT, epic: { type: 'string', description: 'e.g. thesis' } },
       required: ['project'],
     },
-    run(args, project) {
+    run(args, project, layout) {
       const epic = str(doorContext(args).epic, MAX_SLUG)
       if (!epic) {
-        const all = list(project)
-        if (!all.length) return 'No documents in this project — no folder under .kehikot/ has an <epic>/main.tex.'
+        const all = list(project, layout)
+        if (!all.length) {
+          return layout
+            ? 'No documents in this project — no epic has a document where the module that keeps them says.'
+            : 'No documents in this project — no folder under .kehikot/ has an <epic>/main.tex.'
+        }
         return all
           .map((d) => `${d.epic}\t${d.entries === null ? 'no bibliography' : `${d.entries} entries`}\t${d.title ?? ''}`)
           .join('\n')
       }
       if (!isEpic(epic)) return 'that is not an epic name'
-      const found = readCitations(epic, project)
+      const found = readCitations(epic, project, layout)
       if (!found) return `no document for "${epic}" in this project`
       if (found.bib === null) return `"${epic}" names no bibliography (no \\addbibresource or \\bibliography).`
       const lines = found.rows.map(
@@ -169,10 +209,10 @@ const TOOLS: Record<string, { description: string; schema: object; run: ToolCall
       properties: { project: PROJECT, epic: { type: 'string' } },
       required: ['project', 'epic'],
     },
-    run(args, project) {
+    run(args, project, layout) {
       const epic = str(doorContext(args).epic, MAX_SLUG)
       if (!isEpic(epic)) return 'that is not an epic name'
-      const found = readCitations(epic, project)
+      const found = readCitations(epic, project, layout)
       if (!found) return `no document for "${epic}" in this project`
       const lines: string[] = []
       for (const b of found.broken) {
@@ -242,7 +282,7 @@ async function mcp(request: Rpc): Promise<Reply> {
     const args = (request.params?.arguments as Record<string, unknown> | undefined) ?? {}
     const at = await projectIn(doorContext(args).project)
     if (at.path === null) return result({ content: [{ type: 'text', text: at.why }] })
-    const content = [{ type: 'text', text: tool.run(args, at.path) }]
+    const content = [{ type: 'text', text: tool.run(args, at.path, await layout()) }]
     if (at.note) content.push({ type: 'text', text: at.note })
     return result({ content })
   }
@@ -288,7 +328,7 @@ export async function answer(
       nowhere: project === null,
       ...(at.why !== null ? { error: at.why } : {}),
       ...(at.note ? { note: at.note } : {}),
-      documents: project === null ? [] : list(project),
+      documents: project === null ? [] : list(project, await layout()),
     })
   }
 
@@ -300,11 +340,11 @@ export async function answer(
     if (!isEpic(epic)) return bad('that is not an epic name')
     const at = await projectIn(query.get('project'))
     if (at.path === null) return { status: 503, body: { ok: false, error: at.why, nowhere: true } }
-    const found = readCitations(epic, at.path)
+    const found = readCitations(epic, at.path, await layout())
     /* An epic with no document is an ANSWER, not a failure: the page asks about every epic the canvas
        opens and draws its own sentence for this one. A 404 put a red line in the console of every
        canvas that opened such an epic, for nothing that had gone wrong. So it is `ok: false` under 200
-       with `missing: true` (as Paper's `/api/paper` does), and the statuses are kept for what IS
+       with `missing: true`, and the statuses are kept for what IS
        wrong: no project (503), a name that is not an epic's (400). */
     if (!found) return ok({ ok: false, missing: true, error: `no document for "${epic}" in this project` })
     return ok({ ok: true, citations: found, ...(at.note ? { note: at.note } : {}) })

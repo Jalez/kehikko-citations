@@ -14,7 +14,7 @@ GlobalRegistrator.register()
    a former path or no host at all replaces ASK.options. */
 import { existsSync, statSync } from 'node:fs'
 
-import { ASK } from '../doors.ts'
+import { ASK, DOCUMENTS } from '../doors.ts'
 
 export const DEFAULT_ASK = {
   env: { KEHIKOT_ORIGINS: 'http://127.0.0.1:4170' },
@@ -25,3 +25,6 @@ export const DEFAULT_ASK = {
   }) as unknown as typeof fetch,
 }
 ASK.options = DEFAULT_ASK
+
+/* Nobody keeps documents unless a test says so: the host is never asked who does. */
+DOCUMENTS.find = async () => null

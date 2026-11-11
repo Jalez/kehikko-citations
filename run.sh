@@ -33,11 +33,11 @@
 #
 # ## Nothing to configure
 #
-# Documents are read from the project the host says is open, at
-# `<project>/.kehikot/paper/<epic>/main.tex` — where the paper module reads
-# papers. `KEHIKKO_PAPERS_DIR` and `KEHIKKO_THESIS_DIR`
-# used to say where to look and are no longer read; the paper module dropped
-# them first, and the essay at the top of `store.ts` says why.
+# Documents are read from the project the host says is open: the epic's
+# document, where the module that keeps it says (or the first
+# `<project>/.kehikot/<folder>/<epic>/main.tex`). `KEHIKKO_PAPERS_DIR` and
+# `KEHIKKO_THESIS_DIR` used to say where to look and are no longer read; the
+# essay at the top of `store.ts` says why.
 #
 # It does NOT register a module that had none. Registration is a deliberate act
 # by a person — see `register.ts` — and a start script that quietly wrote into
@@ -94,7 +94,7 @@ fi
 
 if [ -n "${KEHIKKO_PAPERS_DIR:-}${KEHIKKO_THESIS_DIR:-}" ]; then
   echo "citations: KEHIKKO_PAPERS_DIR / KEHIKKO_THESIS_DIR are set and no longer read." >&2
-  echo "citations: documents come from the open project, at <project>/.kehikot/paper/<epic>/main.tex." >&2
+  echo "citations: documents come from the open project: the epic's document, where the module that keeps it says." >&2
 fi
 
 # The built page, when its stamp is this checkout's HEAD (`bun run build`, which a

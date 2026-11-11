@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 
-import { kehikotDir } from 'kehikot-module-protocol'
+import { documentRoot, documentsFolder, kehikotDir, type DocumentProposals } from 'kehikot-module-protocol'
 
 import { findCites, crossReference, type Cite, type CrossReference } from './bib/cite.ts'
 import { parseBib, view, type BibEntry, type BibView } from './bib/parse.ts'
@@ -19,13 +19,16 @@ import { parseBib, view, type BibEntry, type BibView } from './bib/parse.ts'
  *
  * ## Where a document is, and that this file names nobody
  *
- * A document is a folder named for its epic with a `main.tex` in it, inside one
- * of the folders the project keeps under `.kehikot/`:
- * `<project>/.kehikot/<somewhere>/<epic>/main.tex`, in the project the host says
- * is open (`kehikot.context.projectPath`). Which folder is not this app's to
- * know. It looks in each of them, in name order, and reads the first document
- * it finds for an epic — so it names no other program, needs none to be
- * installed or running, and reads a document whoever keeps it there.
+ * The module that keeps a document per epic says where (`document.proposals`,
+ * protocol 2.83.0): its descriptor's `root` is the epic's folder relative to the
+ * project (`documentRoot`) and `main` the main file in it. The doors find that
+ * module through the host and hand its `Layout` here; this file never names it.
+ *
+ * With no such module answering, a document is still read where one is: a
+ * folder named for its epic with a `main.tex` in it, inside one of the folders
+ * the project keeps under `.kehikot/` (`<project>/.kehikot/<somewhere>/<epic>/main.tex`),
+ * the first found in name order. So it needs no other program installed or
+ * running, and reads a document whoever keeps it there.
  *
  * This used to be two environment variables — `KEHIKKO_PAPERS_DIR` and
  * `KEHIKKO_THESIS_DIR`. They were one restart from
@@ -48,11 +51,16 @@ import { parseBib, view, type BibEntry, type BibView } from './bib/parse.ts'
  * owns, tests, and can be audited without reading another repository.
  */
 
-/** A directory holding one document: a `main.tex` and whatever it includes. */
+/** A directory holding one document: its main file and whatever that includes. */
 export interface DocumentRoot {
   epic: string
   dir: string
+  /** The main file, relative to `dir`. */
+  main: string
 }
+
+/** Where the module that keeps documents puts them: its descriptor's `root` and `main`. Null: nobody says. */
+export type Layout = Pick<DocumentProposals, 'root' | 'main'> | null
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,79}$/
 
@@ -141,20 +149,40 @@ function confine(root: string, relative: string): string | null {
   return realTarget === realRoot || realTarget.startsWith(`${realRoot}/`) ? realTarget : null
 }
 
+/** The main file of a document when nobody says otherwise: LaTeX's own convention. */
 const MAIN = 'main.tex'
 const MAX_BYTES = 4_000_000
 
 /**
  * Every document this project holds, one to an epic.
  *
- * One directory read, and the folder's name is the epic. A directory with no
- * `main.tex` is not a paper — that is what keeps an abandoned folder from
- * putting a document in the picker that could only ever say "nothing here".
- * Every root is confined and resolved before it is a root.
+ * With a `layout`, the folder every epic's document is under is listed and each
+ * entry's folder (`documentRoot`) is a document when it holds the layout's main
+ * file. Without one, every shelf under `.kehikot/` is looked in for an
+ * `<epic>/main.tex`. One directory read per folder, and the folder's name is the
+ * epic. A directory with no main file is not a document — that is what keeps an
+ * abandoned folder from putting a document in the picker that could only ever
+ * say "nothing here". Every root is confined and resolved before it is a root.
  */
-export function roots(project: string | null): DocumentRoot[] {
+export function roots(project: string | null, layout: Layout = null): DocumentRoot[] {
   if (project === null) return []
   const out: DocumentRoot[] = []
+  if (layout) {
+    const folder = confine(project, documentsFolder(layout))
+    let entries: string[] = []
+    try {
+      entries = folder === null ? [] : readdirSync(folder)
+    } catch {
+      entries = []
+    }
+    for (const entry of entries.sort()) {
+      if (!isEpic(entry)) continue
+      const root = confine(project, documentRoot(layout, entry))
+      if (!root || !confine(root, layout.main) || !existsSync(join(root, layout.main))) continue
+      out.push({ epic: entry, dir: root, main: layout.main })
+    }
+    return out
+  }
   for (const dir of shelves(project)) {
     let entries: string[] = []
     try {
@@ -167,7 +195,7 @@ export function roots(project: string | null): DocumentRoot[] {
       if (!isEpic(entry) || out.some((had) => had.epic === entry)) continue
       const root = confine(dir, entry)
       if (!root || !existsSync(join(root, MAIN))) continue
-      out.push({ epic: entry, dir: root })
+      out.push({ epic: entry, dir: root, main: MAIN })
     }
   }
   return out.sort((a, b) => (a.epic < b.epic ? -1 : a.epic > b.epic ? 1 : 0))
@@ -298,10 +326,10 @@ function read(path: string): string | null {
  * and the file is empty or missing". A picker that showed a dash for both would
  * hide the more actionable of the two.
  */
-export function list(project: string | null): Brief[] {
+export function list(project: string | null, layout: Layout = null): Brief[] {
   const out: Brief[] = []
-  for (const root of roots(project)) {
-    const main = confine(root.dir, MAIN)
+  for (const root of roots(project, layout)) {
+    const main = confine(root.dir, root.main)
     const source = main ? read(main) : null
     if (source === null) continue
     const targets = bibTargets(source)
@@ -322,27 +350,28 @@ export function list(project: string | null): Brief[] {
 /**
  * One document's bibliography, read, with every entry cross-referenced.
  *
- * The `.tex` files are the ones the document itself names — `main.tex` plus one
+ * The `.tex` files are the ones the document itself names — its main file plus one
  * level of `\include`: the
  * document order is a fact about the source, and a scratch `.tex` lying beside
- * the paper is not part of it. A key cited only in a file the document does not
+ * the document is not part of it. A key cited only in a file the document does not
  * include is a key that does not appear in the PDF, so counting it would be
  * reporting a citation that is not there.
  *
  * One level deep, deliberately, matching LaTeX's own rule that `\include`
  * cannot nest — and making a cycle impossible rather than merely unlikely.
  */
-export function readCitations(epic: string, project: string | null): Citations | null {
+export function readCitations(epic: string, project: string | null, layout: Layout = null): Citations | null {
   if (!isEpic(epic)) return null
-  const root = roots(project).find((r) => r.epic === epic)?.dir
-  if (!root) return null
-  const main = confine(root, MAIN)
+  const found = roots(project, layout).find((r) => r.epic === epic)
+  if (!found) return null
+  const root = found.dir
+  const main = confine(root, found.main)
   const source = main ? read(main) : null
   if (source === null) return null
 
   /* The prose: main plus one level of includes, each confined separately. */
-  const files: string[] = [MAIN]
-  const cites: Cite[] = findCites(source, MAIN)
+  const files: string[] = [found.main]
+  const cites: Cite[] = findCites(source, found.main)
   for (const target of includeTargets(source)) {
     const path = confine(root, target)
     const chapter = path ? read(path) : null
