@@ -316,7 +316,7 @@ export function App() {
 
   if (whole) {
     return (
-      <div className="flex h-full min-w-0 flex-col bg-background text-foreground">
+      <div data-kehikot-page className="flex h-full min-w-0 flex-col text-foreground">
         <Cover state={whole} name="Citations" detail={whole === 'no-project' ? NO_PROJECT : null} />
       </div>
     )
@@ -331,7 +331,7 @@ export function App() {
      * would decide this column's layout from the size of the host's browser
      * window, which says nothing at all about how wide this container is.
      */
-    <div className="@container relative flex h-full min-w-0 flex-col bg-background text-foreground">
+    <div data-kehikot-page className="@container relative flex h-full min-w-0 flex-col text-foreground">
       {fallback && items.length ? <HeaderFallback items={items} onPress={(p) => void press.current(p)} className="absolute top-1 right-1" /> : null}
       {/* With a footer, the footer names the document and the .bib, and the epics without one. */}
       {!footed && <Head sight={sight} epics={epics} documents={documents} showing={showing} padded={fallback && items.length > 0} />}
