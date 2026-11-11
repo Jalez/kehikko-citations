@@ -59,7 +59,7 @@ export const PREFERRED_PORT = 7930
  *
  * - **`selection:set` — not declared, and this is the interesting refusal.**
  *
- *   References declares it: picking a row there puts `gh#111` and `!1801` into
+ *   A module that lists refs declares it: picking a row there puts `gh#111` and `!1801` into
  *   the canvas selection and every other module is told. The obvious move is to
  *   do the same with a citation key, and it is wrong.
  *
@@ -71,8 +71,8 @@ export const PREFERRED_PORT = 7930
  *   a key in one author's `.bib` file, meaningful inside one document and
  *   meaningless three containers over, and putting it in the selection would hand
  *   every module on the canvas a string it will try to look up in a tracker and
- *   fail to find. The failure is not an error anybody sees: it is References
- *   showing nothing, Journeys highlighting nothing, and a reader concluding the
+ *   fail to find. The failure is not an error anybody sees: it is a list of refs
+ *   showing nothing, a journey highlighting nothing, and a reader concluding the
  *   canvas is broken.
  *
  *   The essay's own words for this are "context is the host's own knowledge or

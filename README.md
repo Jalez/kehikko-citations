@@ -106,8 +106,8 @@ because it was told and never checked."* The selection carries refs and no kinds
 `graesser2004autotutor` is not a ref. It is a key in one author's `.bib`,
 meaningful inside one document and meaningless three containers over. Putting it in
 the selection hands every module a string it will look up in a tracker and fail
-to find, and that failure is not an error anybody sees: it is References showing
-nothing, Journeys highlighting nothing, and a reader concluding the canvas is
+to find, and that failure is not an error anybody sees: it is a list of refs showing
+nothing, a journey highlighting nothing, and a reader concluding the canvas is
 broken.
 
 So selection here is local. Pressing a row expands it in place and nothing leaves

@@ -18,9 +18,10 @@ const OTHERS = [
 ]
 const FORBIDDEN: RegExp[] = [
   new RegExp(`\\b(?:kehikot|roadmap)\\.(?:${OTHERS.join('|')})\\b`),
-  /\.kehikot\/paper\b/,
-  /\bPaper\b/,
-  /\b(?:list_sections|read_source|propose_edit|list_proposals)\b/,
+  new RegExp(`\\.kehikot/(?:${OTHERS.join('|')})\\b`),
+  /\b(?:list_sections|read_source|propose_edit|list_proposals|read_paper|show_flow|list_flows|write_screenplay|quizzes|cite_slide|check_item)\b/,
+  /* Other modules' names that are never an everyday word here, in comments as well. */
+  /\b(?:Paper|Journeys|References|Slides|Learning|Screenplay|Flows|Browser|Checklist|Explorer|Orchestrator|Factory|Kanban|Codex|Antigravity|OpenCode|Vibe)\b/,
 ]
 
 function files(dir: string): string[] {
@@ -43,5 +44,13 @@ describe('no neighbours named', () => {
       })
     }
     expect(hits).toEqual([])
+  })
+})
+
+describe('the manifest names no other module', () => {
+  test('nothing it says spells one', async () => {
+    const { MANIFEST } = await import('../manifest.ts')
+    const said = JSON.stringify(MANIFEST, null, 1).split('\n')
+    expect(said.filter((line) => FORBIDDEN.some((rule) => rule.test(line)))).toEqual([])
   })
 })

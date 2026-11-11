@@ -5,7 +5,7 @@ import type { CitationRow } from '../../store.ts'
  * row — and only because somebody asked it to, in the current second, with the
  * count of what is hidden on screen.
  *
- * That is the whole rule this file exists to keep, and it is References'. The
+ * That is the whole rule this file exists to keep, and a module that lists refs keeps it too. The
  * store never drops anything; a filter drops things by definition, so every
  * part of the design here is about making the dropping visible: the count of
  * what matched out of what exists is always drawn, a narrowed list that matches
