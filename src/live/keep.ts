@@ -49,8 +49,8 @@ import { EVERYTHING, type Sifting, type Standing } from './sift.ts'
  * The query is arguable, because it is the strongest filter here and the state
  * is kept per container (this module on one kehikko) rather than per document: a phrase typed while reading one
  * document comes back over another, where it may match nothing, and the reader
- * sees a bibliography that looks empty. It is kept anyway, for References'
- * reason — this page already carries the two things that make that survivable
+ * sees a bibliography that looks empty. It is kept anyway, for the reason a module that
+ * lists refs gives — this page already carries the two things that make that survivable
  * and carries them for exactly this failure: the count that always names both
  * numbers, and the sentence that says the filter is hiding all of them and
  * offers to clear it.
