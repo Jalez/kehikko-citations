@@ -121,7 +121,7 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   kind: MANIFEST_KIND,
   protocol: PROTOCOL,
   id: ID,
-  name: 'Citations',
+  name: 'Bibliography',
   /* The icon a host draws beside the name: a key of the protocol's module icons, never a path
      or URL; the same key Kehikot's official list gives it. */
   icon: 'lucide:quote',
@@ -148,7 +148,7 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   entry: '/app',
   /* What its content belongs to (protocol 2.29.0): one mode per scope, the default first. */
   modes: [
-    { id: 'citations', label: 'Citations', scope: 'epic', scopeSays: 'the bibliography of the open epic’s document' },
+    { id: 'citations', label: 'Bibliography', scope: 'epic', scopeSays: 'the bibliography of the open epic’s document' },
   ],
   mcp: {
     url: '/mcp',

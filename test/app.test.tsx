@@ -254,7 +254,7 @@ describe('the not-ready moments, each as the one shared cover', () => {
     expect(document.documentElement.classList.contains('light')).toBe(false)
     await settle(800)
     expect(cover()?.getAttribute('data-cover')).toBe('unhosted')
-    expect(document.body.textContent).toContain('Nothing is framing this page — open Citations in Kehikot.')
+    expect(document.body.textContent).toContain('Nothing is framing this page — open Bibliography in Kehikot.')
     /* And nothing was read: with no project there is nowhere to look. */
     expect(asked).toHaveLength(0)
   })
@@ -297,7 +297,7 @@ describe('the not-ready moments, each as the one shared cover', () => {
     }) as unknown as typeof fetch
     await pickDocument('b')
     await waitFor(() => expect(cover()?.getAttribute('data-cover')).toBe('down'))
-    expect(document.body.textContent).toContain('Citations’ own server is not answering.')
+    expect(document.body.textContent).toContain('Bibliography’s own server is not answering.')
     expect(document.body.textContent).not.toContain('Load failed')
     /* The picker is still there: the cover is under the head, not over it. */
     expect(document.querySelector('[data-header-fallback]')).toBeTruthy()
