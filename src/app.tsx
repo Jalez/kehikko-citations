@@ -66,7 +66,7 @@ import { cn } from '@/lib/utils.ts'
  */
 
 /** The second line under "No project is open": what this app would read if one were. */
-const NO_PROJECT = 'Citations reads a document’s .bib and the .tex beside it out of the open project.'
+const NO_PROJECT = 'Bibliography reads a document’s .bib and the .tex beside it out of the open project.'
 
 const NO_ROWS: CitationRow[] = []
 const NO_BROKEN: BrokenRow[] = []
@@ -317,7 +317,7 @@ export function App() {
   if (whole) {
     return (
       <div data-kehikot-page className="flex h-full min-w-0 flex-col text-foreground">
-        <Cover state={whole} name="Citations" detail={whole === 'no-project' ? NO_PROJECT : null} />
+        <Cover state={whole} name="Bibliography" detail={whole === 'no-project' ? NO_PROJECT : null} />
       </div>
     )
   }
@@ -347,7 +347,7 @@ export function App() {
         {part ? (
           <Cover
             state={part}
-            name="Citations"
+            name="Bibliography"
             onRetry={() => setAgain((n) => n + 1)}
             detail={
               part === 'no-epic' && documents.length > 1
@@ -393,7 +393,7 @@ function Head({
   return (
     <header className={cn('min-w-0 border-b border-border px-2 py-1.5', padded && 'pr-8')}>
       <h1 className="text-[0.8rem] leading-tight font-semibold break-words">
-        {showing ?? 'Citations'}
+        {showing ?? 'Bibliography'}
         {bib && <span className="ml-1 font-mono text-[0.68rem] font-normal text-muted-foreground">{bib}</span>}
       </h1>
       {/* The documents of the project are the header's Document switch (`header.ts`): no row of pills here. */}

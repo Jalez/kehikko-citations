@@ -50,7 +50,7 @@ export default defineConfig({
   base: './',
   plugins: [
     serves({ id: ID, prefer: PREFERRED_PORT }),
-    doors({ manifest: MANIFEST, answer, build: BUILD, page: { title: 'Citations' } }),
+    doors({ manifest: MANIFEST, answer, build: BUILD, page: { title: 'Bibliography' } }),
     says(),
     react(),
     tailwindcss(),

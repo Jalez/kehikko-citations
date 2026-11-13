@@ -93,8 +93,8 @@ if [ ! -d node_modules ] || [ ! -f "$INSTALLED" ] || [ bun.lock -nt "$INSTALLED"
 fi
 
 if [ -n "${KEHIKKO_PAPERS_DIR:-}${KEHIKKO_THESIS_DIR:-}" ]; then
-  echo "citations: KEHIKKO_PAPERS_DIR / KEHIKKO_THESIS_DIR are set and no longer read." >&2
-  echo "citations: documents come from the open project: the epic's document, where the module that keeps it says." >&2
+  echo "Bibliography: KEHIKKO_PAPERS_DIR / KEHIKKO_THESIS_DIR are set and no longer read." >&2
+  echo "Bibliography: documents come from the open project: the epic's document, where the module that keeps it says." >&2
 fi
 
 # The built page, when its stamp is this checkout's HEAD (`bun run build`, which a
@@ -110,7 +110,7 @@ if [ -n "$BUILT" ] && [ "$BUILT" = "$(git rev-parse HEAD 2>/dev/null)" ]; then
   exec bun run serve.ts
 fi
 if [ -n "$BUILT" ]; then
-  echo "citations: dist/ is a build of ${BUILT:0:7}, not of this checkout, so Vite serves the page. \`bun run build\` would make it current." >&2
+  echo "Bibliography: dist/ is a build of ${BUILT:0:7}, not of this checkout, so Vite serves the page. \`bun run build\` would make it current." >&2
 fi
 
 exec bunx vite $VITE_FORCE

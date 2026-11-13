@@ -1,4 +1,4 @@
-# Citations
+# Bibliography
 
 The academic references a document cites, beside the document.
 
@@ -35,7 +35,7 @@ broken citations.
 
 **The open project.** The module that keeps a document per epic says where
 each one is (the `document.proposals` service): its epic folder and main file.
-Citations finds that module through the host (`services:read`) and never names
+Bibliography finds that module through the host (`services:read`) and never names
 it. With no such module answering, a document is a folder named for its epic
 with a `main.tex` in it, inside one of the folders the project keeps under
 `.kehikot/`: `<project>/.kehikot/<folder>/<epic>/main.tex`, the first found in
